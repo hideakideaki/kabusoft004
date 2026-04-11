@@ -1,70 +1,89 @@
 # AGENTS.md
 
-このリポジトリにおける Codex の共通作業規約です。役割別の詳細は `prompts/`、研究内容は `docs/` を参照してください。
+## 1. このリポジトリの目的
+このリポジトリは、日本株の日足データを用いた投資戦略研究を行うためのものである。
+目的は、複数の戦略を同一条件で比較可能な形で実装・検証し、その結果を再利用可能な成果物として蓄積することである。
 
-## 1. まず読む順番
-1. `AGENTS.md`
-2. `docs/spec.md`
-3. `docs/acceptance_criteria.md`
-4. `docs/experiment_rules.md`
-5. 自分に対応する `prompts/*.md`
+## 2. 基本原則
+- 最初に関連文書を読む
+- 憶測で仕様を緩めない
+- 共通処理と個別処理を分離する
+- 出力契約を安定させる
+- 結果だけでなく過程も残す
+- 未来情報を使わない
+- 恣意的な評価をしない
+- 比較可能な形式で成果物を残す
 
-## 2. このリポジトリでの目的
-- 日本株の日足データを対象に、再現可能な投資戦略研究を行う
-- 仮説・実装・検証・反省を分離し、改善サイクルを回す
-- 先読みや過剰最適化を抑えた比較可能な結果を残す
+## 3. 最初に読むべきファイル
+### 全担当共通
+- `AGENTS.md`
+- `docs/acceptance_criteria.md`
 
-## 3. 作業原則
-- 仕様を読まずに作業開始しない
-- 不明点があっても、既存ドキュメントから合理的に補完して前進する
-- 役割外の大きな仕様変更は行わず、必要なら提案として残す
-- 実装・実験・レポートを混同しない
-- 良い数値が出るまで恣意的に期間や条件をいじらない
+### 戦略側担当
+- `docs/spec.md`
+- `docs/experiment_rules.md`
+- `docs/strategy_catalog.md`
 
-## 4. 禁止事項
-- 未来データの利用
-- データリークを伴う特徴量生成
-- テスト未実施での完了宣言
-- ベンチマーク未比較での優位性主張
-- 成果物未保存での完了宣言
-- `docs/` の内容を勝手に書き換えてルールを緩めること
+### Viewer 側担当
+- `docs/viewer_spec.md`
 
-## 5. 実装時の基本ルール
-- シグナル生成は n 日目終了時点までの情報のみを使用する
-- エントリーは原則として n+1 日の寄り付きまたは `docs/spec.md` の定義に従う
-- 手数料・スリッページは必ず考慮する
-- ベンチマークと同条件で比較する
-- 成果物は worker ごとに分離保存する
+### 親スレッド / supervisor
+- `prompts/kickoff_parent_prompt.md`
 
-## 6. 出力品質ルール
-- コードは再実行可能であること
-- 乱数を使う場合は seed を固定すること
-- 例外処理とログを最低限入れること
-- 結果サマリは数値だけでなく、仮説の当たり外れを書くこと
+## 4. 責務分離
+### 4.1 戦略側の責務
+- データ読み込み
+- 特徴量生成
+- シグナル生成
+- 学習
+- バックテスト
+- 指標算出
+- 結果保存
+- 比較レポート生成
 
-## 7. 完了条件
-以下をすべて満たしたら完了扱い。
-- 実装または分析タスクに対応した成果物が保存されている
-- `docs/acceptance_criteria.md` の該当条件を満たす
-- 失敗時は失敗理由と次アクションが書かれている
+### 4.2 Viewer 側の責務
+- `runs/` の閲覧
+- `reports/` の閲覧
+- `data/raw/` `data/processed/` の閲覧
+- 戦略比較表示
+- 結果可視化
+- 欠損や異常の表示
 
-## 8. 参照優先順位
-1. 明示されたユーザー指示
-2. `AGENTS.md`
-3. `docs/acceptance_criteria.md`
-4. `docs/experiment_rules.md`
-5. `docs/spec.md`
-6. 各 `prompts/*.md`
+Viewer 側は、戦略ロジックやバックテスト本体を変更してはならない。
 
-## 9. skill の使い方
-以下は毎回プロンプトへ書かず、必要時に skill として使う。
-- `lookahead-bias-check`: 先読み混入確認
-- `backtest-sanity-check`: 売買ロジックと出力整合性確認
-- `walkforward-eval`: 学習/検証/テスト分離確認
-- `result-summarizer`: 結果の要約補助
+## 5. 出力契約
+### 各戦略ディレクトリ
+- `equity.csv`
+- `trades.csv`
+- `metrics.json`
+- `meta.json`
+- `result_summary.md`
 
-## 10. コミット/差分の考え方
-- 1タスク1目的で変更する
-- 関係ないファイルへ触らない
-- 仕様変更と実装変更を同一コミットに混ぜない
-- 失敗した試行も、残す価値がある場合は理由付きで記録する
+### 全体成果物
+- `reports/strategy_ranking.csv`
+- `reports/strategy_comparison.md`
+- `reports/final_summary.md`
+
+## 6. 重複を避ける
+- 全体原則は `AGENTS.md`
+- 研究仕様は `docs/spec.md`
+- 実験ルールは `docs/experiment_rules.md`
+- 合格条件は `docs/acceptance_criteria.md`
+- 初期戦略一覧は `docs/strategy_catalog.md`
+- Viewer 契約は `docs/viewer_spec.md`
+- 実行開始用指示は `prompts/`
+- 再利用検査手順は `skills/`
+
+## 7. skills
+- `skills/lookahead-bias-check`
+- `skills/backtest-sanity-check`
+- `skills/walkforward-eval`
+- `skills/result-summarizer`
+
+## 8. 禁止事項
+- 未来情報の使用
+- データリーク
+- 成績を良く見せるためだけの恣意的調整
+- 同じ仮説の焼き直し
+- 検証なしで完了扱いにすること
+- Viewer が依存する出力仕様の無断変更

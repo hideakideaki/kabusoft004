@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-04-11T06:36:37.773699+00:00",
+  "reports": [
+    "reports/strategy_ranking.csv",
+    "reports/strategy_comparison.md",
+    "reports/final_summary.md"
+  ],
+  "runs_manifest": "runs/manifest.json",
+  "strategy_ids": [
+    "benchmark_buy_and_hold",
+    "worker_01",
+    "worker_02",
+    "worker_03",
+    "worker_04",
+    "worker_05",
+    "worker_06"
+  ]
+}
