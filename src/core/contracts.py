@@ -15,6 +15,7 @@ STRATEGY_IDS = (
     "worker_04",
     "worker_05",
     "worker_06",
+    "worker_07",
 )
 
 REQUIRED_RUN_FILES = (

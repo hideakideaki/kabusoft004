@@ -254,7 +254,7 @@ function renderComparison() {
     series: selectedRows.map((strategy) => ({
       label: strategy.meta.strategy_name ?? strategy.id,
       points: strategy.equity
-        .map((row, index) => ({ x: index, y: Number(row.equity) }))
+        .map((row, index) => ({ x: index, y: Number(row.equity), label: row.date ?? String(index) }))
         .filter((point) => Number.isFinite(point.y)),
     })),
   });
@@ -327,7 +327,7 @@ function renderStrategyDetail() {
       {
         label: strategy.meta.strategy_name ?? strategy.id,
         points: strategy.equity
-          .map((row, index) => ({ x: index, y: Number(row.equity) }))
+          .map((row, index) => ({ x: index, y: Number(row.equity), label: row.date ?? String(index) }))
           .filter((point) => Number.isFinite(point.y)),
       },
     ],

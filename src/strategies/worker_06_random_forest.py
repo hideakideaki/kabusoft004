@@ -10,7 +10,7 @@ STRATEGY_NAME = "worker_06"
 STRATEGY_TYPE = "ml_based"
 
 
-def generate_signals(features, config: dict, holding_days: int):
+def generate_signals(features, config: dict, holding_days: int, model_dir=None):
     return run_walkforward(
         features,
         lambda: RandomForestClassifier(
@@ -23,4 +23,5 @@ def generate_signals(features, config: dict, holding_days: int):
         ),
         config["walkforward"],
         holding_days,
+        model_dir=model_dir,
     )

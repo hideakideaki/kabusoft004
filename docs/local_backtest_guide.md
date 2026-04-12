@@ -3,7 +3,7 @@
 ## 目的
 - 手元の環境で同じ条件のバックテストを再実行する
 - `runs/` と `reports/` を再生成する
-- 初期資金や保有日数などの共通設定を変更できるようにする
+- 初期資金、バックテスト期間、保有日数などの共通設定を変更できるようにする
 
 ## 前提
 - Python 3.11 以上を推奨
@@ -25,11 +25,15 @@ pip install -r requirements.txt
 
 主要な設定項目:
 - `initial_capital`: 初期資金
+- `start_date`: バックテスト開始日。例: `2022-01-01`
+- `end_date`: バックテスト終了日。例: `2024-12-31`
 - `holding_days_tested`: 試験する保有日数
 - `fee_bps`: 手数料
 - `slippage_bps`: スリッページ
 - `universe_size`: 読み込む流動性上位銘柄数
 - `max_positions`: 同時保有上限
+
+`start_date` と `end_date` を `null` にすると、データの全期間を使います。
 
 ## 単一戦略の実行
 例: `worker_03` を再実行する
@@ -74,12 +78,39 @@ python src/validation/check_backtest_sanity.py
 python src/validation/check_lookahead.py
 ```
 
+## バックテスト期間を変更する場合
+1. [config/backtest.yaml](C:/Data/working/株ソフト004/kabusoft004/config/backtest.yaml) の `start_date` と `end_date` を変更する
+2. 例:
+```yaml
+start_date: 2022-01-01
+end_date: 2024-12-31
+```
+3. `python src/pipelines/run_all_strategies.py` を再実行する
+
 ## 初期資金を変更する場合
 1. [config/backtest.yaml](C:/Data/working/株ソフト004/kabusoft004/config/backtest.yaml) の `initial_capital` を変更する
 2. 必要なら `max_positions` や `universe_size` も調整する
 3. `python src/pipelines/run_all_strategies.py` を再実行する
 
+## 学習済みモデルの保存先
+ML 系戦略 `worker_04` `worker_05` `worker_06` は、walk-forward の各 fold ごとに学習済みモデルを保存します。
+
+保存先:
+- `runs/worker_04/models/holding_10/`
+- `runs/worker_04/models/holding_20/`
+- `runs/worker_05/models/holding_10/`
+- `runs/worker_05/models/holding_20/`
+- `runs/worker_06/models/holding_10/`
+- `runs/worker_06/models/holding_20/`
+
+ファイル名:
+- `fold_01.pkl`
+- `fold_02.pkl`
+- ...
+
+対応する学習期間とテスト期間は各 `runs/<worker>/meta.json` の `walkforward_folds` に保存されます。
+
 ## 補足
 - 現在の実装では `holding_days_tested` にある営業日数をすべて試し、Sharpe が最も高い結果を各戦略の正式出力に採用する
-- `meta.json` には採用された保有日数と、候補ごとの成績を両方保存する
+- `meta.json` には採用された保有日数、候補ごとの成績、ML 系では fold ごとの学習期間と保存モデルパスを記録する
 - Viewer は `runs/` と `reports/` を読む前提なので、出力ファイル名は変更しない

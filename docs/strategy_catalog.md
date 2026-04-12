@@ -20,3 +20,6 @@
 
 ## worker_06
 木系アンサンブル。例: Random Forest
+
+## worker_07
+低ボラ拡大型の局面フィルタと、Logistic Regression / Random Forest の合成順位付けを組み合わせたハイブリッド。

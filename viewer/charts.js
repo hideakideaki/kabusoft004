@@ -2,6 +2,16 @@ import { escapeHtml, formatNumber } from './utils.js';
 
 const SERIES_COLORS = ['#b85c38', '#2f5d7c', '#2a6a52', '#d38b2c', '#714d8b'];
 
+function formatXAxisLabel(point) {
+  if (point?.label) {
+    return String(point.label);
+  }
+  if (Number.isFinite(point?.x)) {
+    return String(point.x);
+  }
+  return '';
+}
+
 export function renderLineChart(container, { series, height = 280 }) {
   const validSeries = series.filter((item) => item.points.length > 1);
   if (!validSeries.length) {
@@ -21,7 +31,7 @@ export function renderLineChart(container, { series, height = 280 }) {
   const padding = {
     top: 18,
     right: 12,
-    bottom: 28,
+    bottom: 54,
     left: Math.max(72, maxLabelLength * 10 + 20),
   };
   const plotWidth = width - padding.left - padding.right;
@@ -53,6 +63,20 @@ export function renderLineChart(container, { series, height = 280 }) {
     `;
   }).join('');
 
+  const xTickIndexes = [0, 0.25, 0.5, 0.75, 1]
+    .map((ratio) => Math.round((validSeries[0].points.length - 1) * ratio))
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+  const xTicks = xTickIndexes.map((pointIndex) => {
+    const point = validSeries[0].points[pointIndex];
+    const x = scaleX(point.x);
+    return `
+      <line x1="${x}" y1="${padding.top}" x2="${x}" y2="${height - padding.bottom}" stroke="rgba(84,62,43,0.06)" />
+      <line x1="${x}" y1="${height - padding.bottom}" x2="${x}" y2="${height - padding.bottom + 6}" stroke="rgba(84,62,43,0.25)" />
+      <text x="${x}" y="${height - padding.bottom + 12}" text-anchor="middle" dominant-baseline="hanging" fill="#6d6257" font-size="12">${escapeHtml(formatXAxisLabel(point))}</text>
+    `;
+  }).join('');
+
   const legend = validSeries
     .map((item, index) => `
       <span class="legend-item">
@@ -65,6 +89,7 @@ export function renderLineChart(container, { series, height = 280 }) {
   container.innerHTML = `
     <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Equity comparison chart">
       ${yTicks}
+      ${xTicks}
       ${axisLines}
       ${linePaths}
     </svg>

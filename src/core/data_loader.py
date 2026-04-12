@@ -55,3 +55,16 @@ def load_market_data(root_str: str, universe_size: int) -> pd.DataFrame:
     market = pd.concat(frames, ignore_index=True)
     market = market.sort_values(["symbol", "date"]).reset_index(drop=True)
     return market
+
+
+def apply_backtest_date_range(market: pd.DataFrame, config: dict) -> pd.DataFrame:
+    filtered = market.copy()
+    start_date = config.get("start_date")
+    end_date = config.get("end_date")
+
+    if start_date:
+        filtered = filtered[filtered["date"] >= pd.to_datetime(start_date)]
+    if end_date:
+        filtered = filtered[filtered["date"] <= pd.to_datetime(end_date)]
+
+    return filtered.sort_values(["symbol", "date"]).reset_index(drop=True)

@@ -8,7 +8,7 @@ STRATEGY_NAME = "worker_01"
 STRATEGY_TYPE = "rule_based"
 
 
-def generate_signals(features: pd.DataFrame, config: dict, holding_days: int) -> pd.DataFrame:
+def generate_signals(features: pd.DataFrame, config: dict, holding_days: int, model_dir=None) -> pd.DataFrame:
     signals = features[
         (features["breakout_strength"] > 0.0)
         & (features["volume_ratio_20"] > 1.5)

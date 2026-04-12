@@ -1,4 +1,6 @@
 initial_capital: 1000000
+start_date: null
+end_date: null
 entry: next_open
 holding_days_tested: [10, 20]
 fee_bps: 10
