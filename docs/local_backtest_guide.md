@@ -30,6 +30,9 @@ pip install -r requirements.txt
 - `holding_days_tested`: 試験する保有日数
 - `fee_bps`: 手数料
 - `slippage_bps`: スリッページ
+- `trade_lot_size`: 売買単位。日本株を通常通り扱うなら `100`
+- `benchmark_symbol`: ベンチマークに使う ETF コード。既定値は `1321`
+- `benchmark_trade_lot_size`: ベンチマーク銘柄の売買単位。既定値は `10`
 - `universe_size`: 読み込む流動性上位銘柄数
 - `max_positions`: 同時保有上限
 

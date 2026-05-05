@@ -5,8 +5,11 @@ entry: next_open
 holding_days_tested: [10, 20]
 fee_bps: 10
 slippage_bps: 10
+trade_lot_size: 100
 universe_size: 250
 max_positions: 10
 benchmark_positions: 20
+benchmark_symbol: "1321"
+benchmark_trade_lot_size: 10
 top_signals_per_day: 20
 min_history_days: 260

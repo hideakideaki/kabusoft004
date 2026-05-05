@@ -21,6 +21,11 @@ def _parse_date(value: str) -> datetime:
 def check_strategy(root: Path, strategy_id: str) -> list[str]:
     snapshot = load_run_snapshot(root, strategy_id)
     issues = list(snapshot.issues)
+    selected_engine_meta = snapshot.meta.get("selected_engine_meta", {})
+    allow_early_exit = any(
+        selected_engine_meta.get(key) not in ("", None)
+        for key in ("stop_loss_pct", "take_profit_pct")
+    )
 
     equity_path = snapshot.run_dir / "equity.csv"
     if equity_path.exists():
@@ -52,7 +57,7 @@ def check_strategy(root: Path, strategy_id: str) -> list[str]:
                     issues.append(f"{strategy_id}: trade exits before it enters")
                 if holding_days < 0:
                     issues.append(f"{strategy_id}: holding_days is negative")
-                if (exit_date - entry_date).days < holding_days:
+                if not allow_early_exit and (exit_date - entry_date).days < holding_days:
                     issues.append(
                         f"{strategy_id}: holding_days is longer than the calendar gap between entry and exit"
                     )

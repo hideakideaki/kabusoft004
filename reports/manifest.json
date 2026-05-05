@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-12T05:10:34.940466+00:00",
+  "generated_at": "2026-05-01T07:23:52.076556+00:00",
   "reports": [
     "reports/strategy_ranking.csv",
     "reports/strategy_comparison.md",
@@ -14,6 +14,15 @@
     "worker_04",
     "worker_05",
     "worker_06",
-    "worker_07"
+    "worker_07",
+    "worker_08",
+    "worker_09",
+    "worker_10",
+    "worker_10b",
+    "worker_10c",
+    "worker_10d",
+    "worker_10e",
+    "worker_10f",
+    "worker_11"
   ]
 }

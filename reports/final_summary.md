@@ -2,10 +2,10 @@
 
 ## サマリー
 
-- Sharpe 基準の総合首位: worker_07 (Sharpe 1.102765, CAGR 0.293157)
-- ルールベース首位: worker_03 (Sharpe 0.772754)
-- 機械学習系首位: worker_07 (Sharpe 1.102765)
-- ベンチマーク参照: benchmark_buy_and_hold (Sharpe 0.452401, CAGR 0.549455)
+- Sharpe 基準の総合首位: worker_10f (Sharpe 1.343294, CAGR 0.203179)
+- ルールベース首位: worker_03 (Sharpe 1.075428)
+- 機械学習系首位: worker_10f (Sharpe 1.343294)
+- ベンチマーク参照: benchmark_buy_and_hold (Sharpe 0.742086, CAGR 0.132527)
 
 ## 注意点
 

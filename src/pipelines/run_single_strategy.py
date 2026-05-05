@@ -35,6 +35,15 @@ STRATEGY_MODULES = {
     "worker_05": "src.strategies.worker_05_gradient_boosting",
     "worker_06": "src.strategies.worker_06_random_forest",
     "worker_07": "src.strategies.worker_07_hybrid_event_ml",
+    "worker_08": "src.strategies.worker_08_hybrid_event_ml_compact",
+    "worker_09": "src.strategies.worker_09_trend_pullback",
+    "worker_10": "src.strategies.worker_10_hybrid_event_pullback",
+    "worker_10b": "src.strategies.worker_10b_hybrid_event_pullback_defensive",
+    "worker_10c": "src.strategies.worker_10c_hybrid_event_pullback_diversified",
+    "worker_10d": "src.strategies.worker_10d_hybrid_event_pullback_correlation",
+    "worker_10e": "src.strategies.worker_10e_hybrid_event_pullback_blend",
+    "worker_10f": "src.strategies.worker_10f_hybrid_event_pullback_exposure",
+    "worker_11": "src.strategies.worker_11_low_vol_trend_continuation",
 }
 
 
@@ -140,7 +149,10 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
     ensure_dir(run_dir)
 
     if strategy_id == "benchmark_buy_and_hold":
-        equity_df, trades_df, _ = run_benchmark(features, backtest_cfg)
+        equity_df, trades_df, engine_meta = run_benchmark(
+            features,
+            {**backtest_cfg, "_project_root": str(root)},
+        )
         metrics = calculate_metrics(equity_df, trades_df)
         meta = {
             "strategy_id": strategy_id,
@@ -155,6 +167,8 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             "selected_holding_days": None,
             "tested_holding_days": [None],
             "models_saved": False,
+            "benchmark_symbol": engine_meta.get("benchmark_symbol"),
+            "selected_engine_meta": engine_meta,
         }
         summary = _build_summary(
             strategy_id,
@@ -168,11 +182,15 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
         run_dir = _write_outputs(root, strategy_id, equity_df, trades_df, metrics, meta, summary)
     else:
         module = _load_strategy_module(strategy_id)
-        strategy_cfg = {"backtest": backtest_cfg, "walkforward": walk_cfg}
+        strategy_backtest_cfg = {
+            **backtest_cfg,
+            **getattr(module, "BACKTEST_OVERRIDES", {}),
+        }
+        strategy_cfg = {"backtest": strategy_backtest_cfg, "walkforward": walk_cfg}
         tested_runs = []
         _clean_models_dir(run_dir)
 
-        for holding_days in backtest_cfg["holding_days_tested"]:
+        for holding_days in strategy_backtest_cfg["holding_days_tested"]:
             model_dir = None
             if module.STRATEGY_TYPE == "ml_based":
                 model_dir = run_dir / "models" / f"holding_{int(holding_days)}"
@@ -191,7 +209,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             equity_df, trades_df, engine_meta = run_backtest(
                 signals,
                 features,
-                {**backtest_cfg, "holding_days": int(holding_days)},
+                {**strategy_backtest_cfg, "holding_days": int(holding_days)},
             )
             metrics = calculate_metrics(equity_df, trades_df)
             tested_runs.append(
@@ -226,7 +244,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             "end_date": backtest_cfg.get("end_date"),
             "universe_size": backtest_cfg["universe_size"],
             "selected_holding_days": best["holding_days"],
-            "tested_holding_days": list(backtest_cfg["holding_days_tested"]),
+            "tested_holding_days": list(strategy_backtest_cfg["holding_days_tested"]),
             "signals_generated": best["signals"],
             "holding_day_results": {
                 str(item["holding_days"]): item["metrics"] for item in tested_runs
@@ -235,6 +253,8 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
                 str(item["holding_days"]): item["walkforward_folds"] for item in tested_runs
             },
             "models_saved": module.STRATEGY_TYPE == "ml_based",
+            "backtest_overrides": getattr(module, "BACKTEST_OVERRIDES", {}),
+            "selected_engine_meta": best["engine_meta"],
         }
         summary = _build_summary(
             strategy_id,
