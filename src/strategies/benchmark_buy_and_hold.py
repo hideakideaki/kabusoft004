@@ -4,10 +4,31 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.core.data_loader import apply_backtest_date_range, load_symbol_data
+
 
 STRATEGY_ID = "benchmark_buy_and_hold"
 STRATEGY_NAME = "benchmark_buy_and_hold"
 STRATEGY_TYPE = "benchmark"
+
+
+def _empty_benchmark_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    return (
+        pd.DataFrame(columns=["date", "equity"]),
+        pd.DataFrame(
+            columns=[
+                "entry_date",
+                "exit_date",
+                "code",
+                "side",
+                "entry_price",
+                "exit_price",
+                "return",
+                "holding_days",
+                "shares",
+            ]
+        ),
+    )
 
 
 def run_benchmark(features: pd.DataFrame, config: dict):
@@ -17,27 +38,11 @@ def run_benchmark(features: pd.DataFrame, config: dict):
     trade_lot_size = int(config.get("benchmark_trade_lot_size", config.get("trade_lot_size", 1)))
     fee_rate = float(config.get("fee_bps", 0)) / 10000.0
     slippage_rate = float(config.get("slippage_bps", 0)) / 10000.0
-    benchmark_path = root / "data" / "raw" / f"{benchmark_symbol}.csv"
-    if not benchmark_path.exists():
-        return pd.DataFrame(columns=["date", "equity"]), pd.DataFrame(), {
-            "holding_days": None,
-            "benchmark_symbol": benchmark_symbol,
-            "trade_lot_size": trade_lot_size,
-        }
-
-    benchmark = pd.read_csv(benchmark_path)
-    benchmark.columns = [column.lower() for column in benchmark.columns]
-    benchmark["date"] = pd.to_datetime(benchmark["date"])
-    benchmark = benchmark.sort_values("date").reset_index(drop=True)
-
-    start_date = config.get("start_date")
-    end_date = config.get("end_date")
-    if start_date:
-        benchmark = benchmark[benchmark["date"] >= pd.to_datetime(start_date)]
-    if end_date:
-        benchmark = benchmark[benchmark["date"] <= pd.to_datetime(end_date)]
+    benchmark = load_symbol_data(root, benchmark_symbol)
+    benchmark = apply_backtest_date_range(benchmark, config)
     if benchmark.empty:
-        return pd.DataFrame(columns=["date", "equity"]), pd.DataFrame(), {
+        equity_df, trades_df = _empty_benchmark_frames()
+        return equity_df, trades_df, {
             "holding_days": None,
             "benchmark_symbol": benchmark_symbol,
             "trade_lot_size": trade_lot_size,
@@ -50,7 +55,8 @@ def run_benchmark(features: pd.DataFrame, config: dict):
     lots = int(initial_capital // lot_cost)
     shares = lots * trade_lot_size
     if shares <= 0:
-        return pd.DataFrame(columns=["date", "equity"]), pd.DataFrame(), {
+        equity_df, trades_df = _empty_benchmark_frames()
+        return equity_df, trades_df, {
             "holding_days": None,
             "benchmark_symbol": benchmark_symbol,
             "trade_lot_size": trade_lot_size,

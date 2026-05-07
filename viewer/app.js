@@ -23,6 +23,7 @@ const elements = {
   benchmarkOnlyFilter: document.querySelector('#benchmark-only-filter'),
   strategyTableContainer: document.querySelector('#strategy-table-container'),
   comparisonLimitText: document.querySelector('#comparison-limit-text'),
+  comparisonXAxisSelect: document.querySelector('#comparison-x-axis-select'),
   equityChart: document.querySelector('#equity-chart'),
   metricChart: document.querySelector('#metric-chart'),
   detailTitle: document.querySelector('#detail-title'),
@@ -191,6 +192,14 @@ function renderDataKindOptions() {
   elements.dataKindFilter.value = state.filters.dataKind;
 }
 
+function buildComparisonPoint(row, index, xAxisMode) {
+  return {
+    x: index,
+    y: Number(row.equity),
+    label: xAxisMode === 'index' ? String(index) : (row.date ?? String(index)),
+  };
+}
+
 function renderStrategyTable() {
   const rows = getVisibleStrategies();
   renderTable(elements.strategyTableContainer, {
@@ -250,11 +259,13 @@ function renderStrategyTable() {
 
 function renderComparison() {
   const selectedRows = state.repositoryData?.strategies.filter((strategy) => state.comparisonStrategyIds.includes(strategy.id)) ?? [];
+  const xAxisMode = state.filters.comparisonXAxisMode;
+  elements.comparisonXAxisSelect.value = xAxisMode;
   renderLineChart(elements.equityChart, {
     series: selectedRows.map((strategy) => ({
       label: strategy.meta.strategy_name ?? strategy.id,
       points: strategy.equity
-        .map((row, index) => ({ x: index, y: Number(row.equity), label: row.date ?? String(index) }))
+        .map((row, index) => buildComparisonPoint(row, index, xAxisMode))
         .filter((point) => Number.isFinite(point.y)),
     })),
   });
@@ -524,6 +535,10 @@ function bindEvents() {
   elements.benchmarkOnlyFilter.addEventListener('change', () => {
     state.filters.benchmarkOnly = elements.benchmarkOnlyFilter.checked;
     renderAll();
+  });
+  elements.comparisonXAxisSelect.addEventListener('change', () => {
+    state.filters.comparisonXAxisMode = elements.comparisonXAxisSelect.value;
+    renderComparison();
   });
   elements.dataSearch.addEventListener('input', () => {
     state.filters.dataSearch = elements.dataSearch.value;

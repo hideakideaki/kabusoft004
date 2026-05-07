@@ -24,6 +24,9 @@ pip install -r requirements.txt
 - walk-forward 設定: [config/walkforward.yaml](C:/Data/working/株ソフト004/kabusoft004/config/walkforward.yaml)
 
 主要な設定項目:
+- `database_path`: 価格DBのパス。既定値は `C:\Data\working\株価取得\data\prices.db`
+- `allow_csv_primary_source`: DB が使えないときに CSV を主データ源として使うか。既定値は `false`
+- `allow_csv_fallback`: DB に個別銘柄データが無いときに CSV フォールバックを許すか。既定値は `false`
 - `initial_capital`: 初期資金
 - `start_date`: バックテスト開始日。例: `2022-01-01`
 - `end_date`: バックテスト終了日。例: `2024-12-31`
@@ -31,8 +34,8 @@ pip install -r requirements.txt
 - `fee_bps`: 手数料
 - `slippage_bps`: スリッページ
 - `trade_lot_size`: 売買単位。日本株を通常通り扱うなら `100`
-- `benchmark_symbol`: ベンチマークに使う ETF コード。既定値は `1321`
-- `benchmark_trade_lot_size`: ベンチマーク銘柄の売買単位。既定値は `10`
+- `benchmark_symbol`: ベンチマークに使う銘柄コード。既定値は `^N225`
+- `benchmark_trade_lot_size`: ベンチマーク銘柄の売買単位。指数を仮想保有するなら `1`
 - `universe_size`: 読み込む流動性上位銘柄数
 - `max_positions`: 同時保有上限
 

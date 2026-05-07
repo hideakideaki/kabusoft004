@@ -142,6 +142,7 @@ button, input, select { font: inherit; }
 .filter-grid, .raw-toolbar { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .field { display: grid; gap: 8px; }
 .field span { font-size: 0.92rem; color: var(--muted); }
+.comparison-axis-field { min-width: 140px; }
 .field input, .field select {
   width: 100%;
   min-height: 44px;

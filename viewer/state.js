@@ -8,6 +8,7 @@ export function initState() {
       benchmarkOnly: false,
       dataSearch: '',
       dataKind: 'all',
+      comparisonXAxisMode: 'date',
     },
     selectedStrategyId: null,
     comparisonStrategyIds: [],

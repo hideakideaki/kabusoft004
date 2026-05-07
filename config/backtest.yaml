@@ -1,4 +1,7 @@
 initial_capital: 1000000
+database_path: "C:\\Data\\working\\株価取得\\data\\prices.db"
+allow_csv_primary_source: false
+allow_csv_fallback: false
 start_date: null
 end_date: null
 entry: next_open
@@ -9,7 +12,7 @@ trade_lot_size: 100
 universe_size: 250
 max_positions: 10
 benchmark_positions: 20
-benchmark_symbol: "1321"
-benchmark_trade_lot_size: 10
+benchmark_symbol: "^N225"
+benchmark_trade_lot_size: 1
 top_signals_per_day: 20
 min_history_days: 260
