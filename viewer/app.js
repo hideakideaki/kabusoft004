@@ -23,7 +23,6 @@ const elements = {
   benchmarkOnlyFilter: document.querySelector('#benchmark-only-filter'),
   strategyTableContainer: document.querySelector('#strategy-table-container'),
   comparisonLimitText: document.querySelector('#comparison-limit-text'),
-  comparisonXAxisSelect: document.querySelector('#comparison-x-axis-select'),
   equityChart: document.querySelector('#equity-chart'),
   metricChart: document.querySelector('#metric-chart'),
   detailTitle: document.querySelector('#detail-title'),
@@ -178,6 +177,9 @@ async function renderRawPreview(file) {
 
 function renderStrategyFilterOptions() {
   const types = getStrategyTypes(state.repositoryData?.strategies ?? []);
+  if (!elements.strategyTypeFilter) {
+    return;
+  }
   elements.strategyTypeFilter.innerHTML = types
     .map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type === 'all' ? 'すべて' : type)}</option>`)
     .join('');
@@ -186,17 +188,20 @@ function renderStrategyFilterOptions() {
 
 function renderDataKindOptions() {
   const kinds = ['all', ...new Set((state.repositoryData?.dataFiles ?? []).map((file) => file.kind))];
+  if (!elements.dataKindFilter) {
+    return;
+  }
   elements.dataKindFilter.innerHTML = kinds
     .map((kind) => `<option value="${escapeHtml(kind)}">${escapeHtml(kind === 'all' ? 'すべて' : kind)}</option>`)
     .join('');
   elements.dataKindFilter.value = state.filters.dataKind;
 }
 
-function buildComparisonPoint(row, index, xAxisMode) {
+function buildComparisonPoint(row, index) {
   return {
     x: index,
     y: Number(row.equity),
-    label: xAxisMode === 'index' ? String(index) : (row.date ?? String(index)),
+    label: row.date ?? String(index),
   };
 }
 
@@ -259,13 +264,11 @@ function renderStrategyTable() {
 
 function renderComparison() {
   const selectedRows = state.repositoryData?.strategies.filter((strategy) => state.comparisonStrategyIds.includes(strategy.id)) ?? [];
-  const xAxisMode = state.filters.comparisonXAxisMode;
-  elements.comparisonXAxisSelect.value = xAxisMode;
   renderLineChart(elements.equityChart, {
     series: selectedRows.map((strategy) => ({
       label: strategy.meta.strategy_name ?? strategy.id,
       points: strategy.equity
-        .map((row, index) => buildComparisonPoint(row, index, xAxisMode))
+        .map((row, index) => buildComparisonPoint(row, index))
         .filter((point) => Number.isFinite(point.y)),
     })),
   });
@@ -509,42 +512,38 @@ function openFolderInputPicker() {
 }
 
 function bindEvents() {
-  elements.pickDirectoryButton.addEventListener('click', loadFromDirectoryPicker);
-  elements.folderInputButton.addEventListener('click', openFolderInputPicker);
-  elements.directoryInput.addEventListener('click', () => {
+  elements.pickDirectoryButton?.addEventListener('click', loadFromDirectoryPicker);
+  elements.folderInputButton?.addEventListener('click', openFolderInputPicker);
+  elements.directoryInput?.addEventListener('click', () => {
     pushStatusLog('フォルダ入力ダイアログを開いています。');
   });
-  elements.directoryInput.addEventListener('input', (event) => {
+  elements.directoryInput?.addEventListener('input', (event) => {
     const count = event.target.files?.length ?? 0;
     if (count > 0) {
       pushStatusLog(`フォルダ入力で ${count} ファイルを受け取りました。解析を開始します。`);
       setStatus(`フォルダ入力から ${count} ファイルを受け取りました。`, 'neutral');
     }
   });
-  elements.directoryInput.addEventListener('change', async (event) => {
+  elements.directoryInput?.addEventListener('change', async (event) => {
     await loadFromInput(event.target.files);
   });
-  elements.strategySearch.addEventListener('input', () => {
+  elements.strategySearch?.addEventListener('input', () => {
     state.filters.strategySearch = elements.strategySearch.value;
     renderAll();
   });
-  elements.strategyTypeFilter.addEventListener('change', () => {
+  elements.strategyTypeFilter?.addEventListener('change', () => {
     state.filters.strategyType = elements.strategyTypeFilter.value;
     renderAll();
   });
-  elements.benchmarkOnlyFilter.addEventListener('change', () => {
+  elements.benchmarkOnlyFilter?.addEventListener('change', () => {
     state.filters.benchmarkOnly = elements.benchmarkOnlyFilter.checked;
     renderAll();
   });
-  elements.comparisonXAxisSelect.addEventListener('change', () => {
-    state.filters.comparisonXAxisMode = elements.comparisonXAxisSelect.value;
-    renderComparison();
-  });
-  elements.dataSearch.addEventListener('input', () => {
+  elements.dataSearch?.addEventListener('input', () => {
     state.filters.dataSearch = elements.dataSearch.value;
     renderDataFiles();
   });
-  elements.dataKindFilter.addEventListener('change', () => {
+  elements.dataKindFilter?.addEventListener('change', () => {
     state.filters.dataKind = elements.dataKindFilter.value;
     renderDataFiles();
   });
