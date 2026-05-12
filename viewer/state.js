@@ -11,6 +11,7 @@ export function initState() {
     },
     selectedStrategyId: null,
     comparisonStrategyIds: [],
+    comparisonDateRange: null,
     selectedDataFilePath: null,
   };
 }
@@ -20,5 +21,6 @@ export function setRepositoryData(state, repositoryData, sourceLabel) {
   state.sourceLabel = sourceLabel;
   state.selectedStrategyId = repositoryData.strategies[0]?.id ?? null;
   state.comparisonStrategyIds = repositoryData.strategies.slice(0, 2).map((strategy) => strategy.id);
+  state.comparisonDateRange = null;
   state.selectedDataFilePath = repositoryData.dataFiles[0]?.path ?? null;
 }

@@ -5,6 +5,18 @@ from collections import defaultdict
 import pandas as pd
 
 
+def _compute_actual_holding_trading_days(
+    entry_date: pd.Timestamp,
+    exit_date: pd.Timestamp,
+    trading_index_map: dict[pd.Timestamp, int],
+) -> int:
+    entry_idx = trading_index_map.get(entry_date.normalize())
+    exit_idx = trading_index_map.get(exit_date.normalize())
+    if entry_idx is None or exit_idx is None or exit_idx < entry_idx:
+        return 0
+    return (exit_idx - entry_idx) + 1
+
+
 def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
     holding_days = int(config["holding_days"])
     initial_capital = float(config["initial_capital"])
@@ -73,6 +85,9 @@ def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
         for row in market[["date", "symbol", "high", "low", "close"]].itertuples(index=False)
     }
     calendar = sorted(market["date"].drop_duplicates())
+    trading_index_map = {
+        pd.Timestamp(date).normalize(): idx for idx, date in enumerate(calendar)
+    }
 
     cash = initial_capital
     open_positions: dict[str, dict] = {}
@@ -90,6 +105,12 @@ def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
             exit_price = position["exit_price_raw"] * (1.0 - fee_rate - slippage_rate)
             proceeds = position["shares"] * exit_price
             cash += proceeds
+            actual_calendar_days = int((current_date - position["entry_date"]).days)
+            actual_trading_days = _compute_actual_holding_trading_days(
+                position["entry_date"],
+                current_date,
+                trading_index_map,
+            )
             trades.append(
                 {
                     "entry_date": position["entry_date"].strftime("%Y-%m-%d"),
@@ -99,7 +120,9 @@ def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
                     "entry_price": round(position["entry_exec_price"], 6),
                     "exit_price": round(exit_price, 6),
                     "return": round((exit_price / position["entry_exec_price"]) - 1.0, 6),
-                    "holding_days": holding_days,
+                    "planned_holding_days": holding_days,
+                    "actual_holding_calendar_days": actual_calendar_days,
+                    "actual_holding_trading_days": actual_trading_days,
                     "shares": int(position["shares"]),
                 }
             )
@@ -160,6 +183,12 @@ def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
             exit_price = exit_price_raw * (1.0 - fee_rate - slippage_rate)
             proceeds = position["shares"] * exit_price
             cash += proceeds
+            actual_calendar_days = int((current_date - position["entry_date"]).days)
+            actual_trading_days = _compute_actual_holding_trading_days(
+                position["entry_date"],
+                current_date,
+                trading_index_map,
+            )
             trades.append(
                 {
                     "entry_date": position["entry_date"].strftime("%Y-%m-%d"),
@@ -169,7 +198,9 @@ def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
                     "entry_price": round(position["entry_exec_price"], 6),
                     "exit_price": round(exit_price, 6),
                     "return": round((exit_price / position["entry_exec_price"]) - 1.0, 6),
-                    "holding_days": holding_days,
+                    "planned_holding_days": holding_days,
+                    "actual_holding_calendar_days": actual_calendar_days,
+                    "actual_holding_trading_days": actual_trading_days,
                     "shares": int(position["shares"]),
                 }
             )
@@ -201,7 +232,9 @@ def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
             "entry_price",
             "exit_price",
             "return",
-            "holding_days",
+            "planned_holding_days",
+            "actual_holding_calendar_days",
+            "actual_holding_trading_days",
             "shares",
         ],
     )

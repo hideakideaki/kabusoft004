@@ -54,7 +54,7 @@ REQUIRED_TRADES_COLUMNS = (
     "entry_price",
     "exit_price",
     "return",
-    "holding_days",
+    "planned_holding_days",
 )
 
 REQUIRED_METRICS_KEYS = (

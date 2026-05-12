@@ -52,15 +52,17 @@ def check_strategy(root: Path, strategy_id: str) -> list[str]:
                 trade_count += 1
                 entry_date = _parse_date(row["entry_date"])
                 exit_date = _parse_date(row["exit_date"])
-                holding_days = int(float(row["holding_days"]))
+                planned_holding_days_raw = row.get("planned_holding_days")
                 if exit_date < entry_date:
                     issues.append(f"{strategy_id}: trade exits before it enters")
-                if holding_days < 0:
-                    issues.append(f"{strategy_id}: holding_days is negative")
-                if not allow_early_exit and (exit_date - entry_date).days < holding_days:
-                    issues.append(
-                        f"{strategy_id}: holding_days is longer than the calendar gap between entry and exit"
-                    )
+                if planned_holding_days_raw not in ("", None):
+                    planned_holding_days = int(float(planned_holding_days_raw))
+                    if planned_holding_days < 0:
+                        issues.append(f"{strategy_id}: planned_holding_days is negative")
+                    if not allow_early_exit and (exit_date - entry_date).days < planned_holding_days:
+                        issues.append(
+                            f"{strategy_id}: planned_holding_days is longer than the calendar gap between entry and exit"
+                        )
         metric_trades = snapshot.metrics.get("num_trades")
         if metric_trades not in ("", None) and int(metric_trades) != trade_count:
             issues.append(

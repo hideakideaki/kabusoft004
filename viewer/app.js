@@ -23,6 +23,7 @@ const elements = {
   benchmarkOnlyFilter: document.querySelector('#benchmark-only-filter'),
   strategyTableContainer: document.querySelector('#strategy-table-container'),
   comparisonLimitText: document.querySelector('#comparison-limit-text'),
+  comparisonRangeControls: document.querySelector('#comparison-range-controls'),
   equityChart: document.querySelector('#equity-chart'),
   metricChart: document.querySelector('#metric-chart'),
   detailTitle: document.querySelector('#detail-title'),
@@ -198,11 +199,100 @@ function renderDataKindOptions() {
 }
 
 function buildComparisonPoint(row, index) {
+  const timestamp = Date.parse(row.date ?? '');
   return {
-    x: index,
+    x: Number.isFinite(timestamp) ? timestamp : index,
     y: Number(row.equity),
     label: row.date ?? String(index),
   };
+}
+
+function getComparisonStrategies() {
+  return state.repositoryData?.strategies.filter((strategy) => state.comparisonStrategyIds.includes(strategy.id)) ?? [];
+}
+
+function getComparisonDateDomain(strategies) {
+  const dateMap = new Map();
+  strategies.forEach((strategy) => {
+    strategy.equity.forEach((row) => {
+      const label = row.date ?? '';
+      const timestamp = Date.parse(label);
+      if (label && Number.isFinite(timestamp) && !dateMap.has(label)) {
+        dateMap.set(label, timestamp);
+      }
+    });
+  });
+  return [...dateMap.entries()]
+    .sort((left, right) => left[1] - right[1])
+    .map(([label, timestamp]) => ({ label, timestamp }));
+}
+
+function ensureComparisonDateRange(domain) {
+  if (!domain.length) {
+    state.comparisonDateRange = null;
+    return null;
+  }
+
+  const maxIndex = domain.length - 1;
+  const minGap = maxIndex > 0 ? 1 : 0;
+  const currentRange = state.comparisonDateRange;
+  const nextStart = Math.max(0, Math.min(currentRange?.start ?? 0, maxIndex));
+  const desiredEnd = Math.min(currentRange?.end ?? maxIndex, maxIndex);
+  const nextEnd = Math.max(Math.min(nextStart + minGap, maxIndex), desiredEnd, nextStart);
+
+  state.comparisonDateRange = { start: nextStart, end: nextEnd };
+  return state.comparisonDateRange;
+}
+
+function renderComparisonRangeControls(domain, range) {
+  if (!elements.comparisonRangeControls) {
+    return;
+  }
+  if (!domain.length || !range) {
+    elements.comparisonRangeControls.innerHTML = '';
+    return;
+  }
+
+  const startLabel = domain[range.start]?.label ?? domain[0].label;
+  const endLabel = domain[range.end]?.label ?? domain[domain.length - 1].label;
+
+  elements.comparisonRangeControls.innerHTML = `
+    <div class="comparison-range-summary">
+      <span>表示期間</span>
+      <span class="comparison-range-label">${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</span>
+    </div>
+    <div class="comparison-range-sliders">
+      <div class="comparison-range-row">
+        <label for="comparison-range-start">開始</label>
+        <input id="comparison-range-start" type="range" min="0" max="${domain.length - 1}" step="1" value="${range.start}">
+      </div>
+      <div class="comparison-range-row">
+        <label for="comparison-range-end">終了</label>
+        <input id="comparison-range-end" type="range" min="0" max="${domain.length - 1}" step="1" value="${range.end}">
+      </div>
+    </div>
+  `;
+
+  const startInput = elements.comparisonRangeControls.querySelector('#comparison-range-start');
+  const endInput = elements.comparisonRangeControls.querySelector('#comparison-range-end');
+
+  startInput?.addEventListener('input', () => {
+    const nextStart = Number(startInput.value);
+    const maxIndex = domain.length - 1;
+    const minGap = maxIndex > 0 ? 1 : 0;
+    const nextEnd = Math.max(Math.min(nextStart + minGap, maxIndex), Number(endInput?.value ?? range.end));
+    state.comparisonDateRange = { start: nextStart, end: nextEnd };
+    renderComparison();
+  });
+
+  endInput?.addEventListener('input', () => {
+    const nextEnd = Number(endInput.value);
+    const maxIndex = domain.length - 1;
+    const minGap = maxIndex > 0 ? 1 : 0;
+    const nextStart = Math.min(Number(startInput?.value ?? range.start), Math.max(0, nextEnd - minGap));
+    state.comparisonDateRange = { start: nextStart, end: nextEnd };
+    renderComparison();
+  });
 }
 
 function renderStrategyTable() {
@@ -263,12 +353,20 @@ function renderStrategyTable() {
 }
 
 function renderComparison() {
-  const selectedRows = state.repositoryData?.strategies.filter((strategy) => state.comparisonStrategyIds.includes(strategy.id)) ?? [];
+  const selectedRows = getComparisonStrategies();
+  const dateDomain = getComparisonDateDomain(selectedRows);
+  const dateRange = ensureComparisonDateRange(dateDomain);
+  renderComparisonRangeControls(dateDomain, dateRange);
+
+  const minTimestamp = dateRange ? dateDomain[dateRange.start]?.timestamp ?? Number.NEGATIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  const maxTimestamp = dateRange ? dateDomain[dateRange.end]?.timestamp ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY;
+
   renderLineChart(elements.equityChart, {
     series: selectedRows.map((strategy) => ({
       label: strategy.meta.strategy_name ?? strategy.id,
       points: strategy.equity
         .map((row, index) => buildComparisonPoint(row, index))
+        .filter((point) => point.x >= minTimestamp && point.x <= maxTimestamp)
         .filter((point) => Number.isFinite(point.y)),
     })),
   });

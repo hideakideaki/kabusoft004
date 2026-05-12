@@ -178,6 +178,44 @@ button, input, select { font: inherit; }
   background: rgba(255, 248, 239, 0.82);
 }
 .chart-card h3 { margin: 0 0 12px; }
+.comparison-range-controls {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.comparison-range-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.comparison-range-label {
+  font-family: var(--mono);
+  color: var(--text);
+}
+.comparison-range-sliders {
+  display: grid;
+  gap: 10px;
+}
+.comparison-range-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.comparison-range-row label {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.comparison-range-row input[type="range"] {
+  width: 100%;
+  min-height: auto;
+  padding: 0;
+  accent-color: var(--accent);
+  background: transparent;
+}
 .chart-svg { display: block; width: 100%; height: auto; }
 .chart-empty, .empty-state { padding: 24px; color: var(--muted); text-align: center; }
 .legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 12px; }

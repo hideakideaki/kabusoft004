@@ -24,7 +24,9 @@ def _empty_benchmark_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
                 "entry_price",
                 "exit_price",
                 "return",
-                "holding_days",
+                "planned_holding_days",
+                "actual_holding_calendar_days",
+                "actual_holding_trading_days",
                 "shares",
             ]
         ),
@@ -83,7 +85,9 @@ def run_benchmark(features: pd.DataFrame, config: dict):
                 "entry_price": round(entry_price, 6),
                 "exit_price": round(exit_price, 6),
                 "return": round((exit_price / entry_price) - 1.0, 6),
-                "holding_days": int((exit_row["date"] - entry_row["date"]).days),
+                "planned_holding_days": None,
+                "actual_holding_calendar_days": int((exit_row["date"] - entry_row["date"]).days),
+                "actual_holding_trading_days": int(len(benchmark)),
                 "shares": shares,
             }
         ],
@@ -95,7 +99,9 @@ def run_benchmark(features: pd.DataFrame, config: dict):
             "entry_price",
             "exit_price",
             "return",
-            "holding_days",
+            "planned_holding_days",
+            "actual_holding_calendar_days",
+            "actual_holding_trading_days",
             "shares",
         ],
     )
