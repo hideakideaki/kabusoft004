@@ -198,14 +198,68 @@ def load_symbol_data(root: Path, symbol: str) -> pd.DataFrame:
     return df[["date", "symbol", "open", "high", "low", "close", "volume"]].copy()
 
 
-def apply_backtest_date_range(market: pd.DataFrame, config: dict) -> pd.DataFrame:
+def _apply_single_date_range(
+    market: pd.DataFrame,
+    start_date: str | None,
+    end_date: str | None,
+) -> pd.DataFrame:
     filtered = market.copy()
-    start_date = config.get("start_date")
-    end_date = config.get("end_date")
-
+    if "date" in filtered.columns:
+        filtered["date"] = pd.to_datetime(filtered["date"])
     if start_date:
         filtered = filtered[filtered["date"] >= pd.to_datetime(start_date)]
     if end_date:
         filtered = filtered[filtered["date"] <= pd.to_datetime(end_date)]
+    return filtered
 
+
+def _has_train_test_split(config: dict) -> bool:
+    return any(
+        config.get(key)
+        for key in (
+            "train_start_date",
+            "train_end_date",
+            "test_start_date",
+            "test_end_date",
+        )
+    )
+
+
+def apply_backtest_date_range(market: pd.DataFrame, config: dict) -> pd.DataFrame:
+    if _has_train_test_split(config):
+        segments: list[pd.DataFrame] = []
+        for prefix in ("train", "test"):
+            start_date = config.get(f"{prefix}_start_date")
+            end_date = config.get(f"{prefix}_end_date")
+            if start_date or end_date:
+                segments.append(_apply_single_date_range(market, start_date, end_date))
+        if segments:
+            filtered = pd.concat(segments, ignore_index=True).drop_duplicates(
+                subset=["date", "symbol"],
+                keep="first",
+            )
+        else:
+            filtered = market.copy()
+    else:
+        filtered = _apply_single_date_range(
+            market,
+            config.get("start_date"),
+            config.get("end_date"),
+        )
+    return filtered.sort_values(["symbol", "date"]).reset_index(drop=True)
+
+
+def apply_test_date_range(market: pd.DataFrame, config: dict) -> pd.DataFrame:
+    if _has_train_test_split(config):
+        filtered = _apply_single_date_range(
+            market,
+            config.get("test_start_date"),
+            config.get("test_end_date"),
+        )
+    else:
+        filtered = _apply_single_date_range(
+            market,
+            config.get("start_date"),
+            config.get("end_date"),
+        )
     return filtered.sort_values(["symbol", "date"]).reset_index(drop=True)

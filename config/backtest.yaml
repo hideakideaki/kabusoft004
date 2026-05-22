@@ -1,9 +1,17 @@
-initial_capital: 1000000
+initial_capital: 3000000
 database_path: "C:\\Data\\working\\株価取得\\data\\prices.db"
 allow_csv_primary_source: false
 allow_csv_fallback: false
 start_date: null
 end_date: null
+train_start_date: null
+train_end_date: null
+test_start_date: null
+test_end_date: null
+# train_start_date: 2025-02-20
+# train_end_date: 2026-02-13
+# test_start_date: 2026-02-16
+# test_end_date: 2026-05-12
 entry: next_open
 holding_days_tested: [10, 20]
 fee_bps: 10

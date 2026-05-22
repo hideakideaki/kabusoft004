@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.core.data_loader import apply_backtest_date_range, load_symbol_data
+from src.core.data_loader import apply_test_date_range, load_symbol_data
 
 
 STRATEGY_ID = "benchmark_buy_and_hold"
@@ -41,7 +41,7 @@ def run_benchmark(features: pd.DataFrame, config: dict):
     fee_rate = float(config.get("fee_bps", 0)) / 10000.0
     slippage_rate = float(config.get("slippage_bps", 0)) / 10000.0
     benchmark = load_symbol_data(root, benchmark_symbol)
-    benchmark = apply_backtest_date_range(benchmark, config)
+    benchmark = apply_test_date_range(benchmark, config)
     if benchmark.empty:
         equity_df, trades_df = _empty_benchmark_frames()
         return equity_df, trades_df, {

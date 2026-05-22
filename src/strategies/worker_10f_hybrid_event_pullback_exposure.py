@@ -191,6 +191,7 @@ def generate_signals(features: pd.DataFrame, config: dict, holding_days: int, mo
         model_path = None
         if model_dir is not None:
             model_path = model_dir / f"fold_{fold_index:02d}.pkl"
+            ensure_dir(model_path.parent)
             with model_path.open("wb") as handle:
                 pickle.dump(
                     {

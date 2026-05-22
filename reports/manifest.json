@@ -1,9 +1,15 @@
 {
-  "generated_at": "2026-05-11T08:00:48.815536+00:00",
+  "generated_at": "2026-05-21T13:14:40.658822+00:00",
   "reports": [
     "reports/strategy_ranking.csv",
     "reports/strategy_comparison.md",
-    "reports/final_summary.md"
+    "reports/final_summary.md",
+    "reports/operational_selection.csv",
+    "reports/operational_selection.md",
+    "reports/main_strategy_selection.csv",
+    "reports/main_strategy_selection.md",
+    "reports/latest_consensus_candidates.csv",
+    "reports/latest_consensus_candidates.md"
   ],
   "runs_manifest": "runs/manifest.json",
   "strategy_ids": [
@@ -23,6 +29,11 @@
     "worker_10d",
     "worker_10e",
     "worker_10f",
-    "worker_11"
+    "worker_11",
+    "worker_12",
+    "worker_13",
+    "worker_14",
+    "worker_15",
+    "worker_15b"
   ]
 }

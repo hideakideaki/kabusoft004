@@ -1,20 +1,37 @@
-# Viewer 仕様書
+# viewer_spec.md
 
 ## 目的
-- `runs/` 配下の戦略別結果の閲覧
-- `reports/` 配下の比較結果の閲覧
-- `data/raw/` および `data/processed/` 配下のデータ確認
-- benchmark / ルールベース / 機械学習ベースの横比較
-- equity / trades / metrics / meta / raw data の可視化
+- `runs/` 配下の各戦略成果物を閲覧する
+- `reports/` 配下の比較レポートを閲覧する
+- `data/raw/` と `data/processed/` の中身を確認する
+- benchmark / rule_based / ml_based の比較を分かりやすく表示する
 
-## 各戦略ディレクトリの必須ファイル
+## 各戦略ディレクトリの契約
 - `equity.csv`
 - `trades.csv`
+- `candidates.csv`
 - `metrics.json`
-- `result_summary.md`
 - `meta.json`
+- `result_summary.md`
 
-## 実装先
+## reports/ の契約
+- `strategy_ranking.csv`
+- `strategy_comparison.md`
+- `final_summary.md`
+- `operational_selection.csv`
+- `operational_selection.md`
+
+## Viewer が最低限表示できるべき項目
+- 戦略一覧
+- equity の推移
+- trades の一覧
+- candidates の一覧
+- metrics の一覧
+- meta の一覧
+- 欠損ファイルやパース失敗の検知
+- reports/ の比較レポート一覧
+
+## 主な対象ファイル
 - `viewer/index.html`
 - `viewer/style.css`
 - `viewer/app.js`

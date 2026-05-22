@@ -112,15 +112,18 @@ export function renderMetricBars(container, rows, metricKey) {
   container.innerHTML = values
     .map((row, index) => {
       const ratio = Math.min(Math.abs(row.value) / max, 1);
-      const color = SERIES_COLORS[index % SERIES_COLORS.length];
+      const color = row.value >= 0 ? SERIES_COLORS[index % SERIES_COLORS.length] : '#ad3d2d';
+      const barWidth = Math.max(ratio * 50, row.value === 0 ? 0 : 3);
+      const barOffset = row.value >= 0 ? 50 : 50 - barWidth;
       return `
         <div style="display:grid;gap:6px;margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;gap:12px;">
             <strong>${escapeHtml(row.label)}</strong>
             <span class="muted">${escapeHtml(formatNumber(row.value))}</span>
           </div>
-          <div style="height:14px;border-radius:999px;background:rgba(84,62,43,0.08);overflow:hidden;">
-            <div style="height:100%;width:${Math.max(ratio * 100, 4)}%;background:${color};border-radius:999px;"></div>
+          <div style="position:relative;height:14px;border-radius:999px;background:rgba(84,62,43,0.08);overflow:hidden;">
+            <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(84,62,43,0.28);"></div>
+            <div style="position:absolute;left:${barOffset}%;top:0;height:100%;width:${barWidth}%;background:${color};border-radius:999px;"></div>
           </div>
         </div>
       `;

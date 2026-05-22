@@ -25,11 +25,17 @@ STRATEGY_IDS = (
     "worker_10e",
     "worker_10f",
     "worker_11",
+    "worker_12",
+    "worker_13",
+    "worker_14",
+    "worker_15",
+    "worker_15b",
 )
 
 REQUIRED_RUN_FILES = (
     "equity.csv",
     "trades.csv",
+    "candidates.csv",
     "metrics.json",
     "meta.json",
     "result_summary.md",
@@ -39,6 +45,8 @@ REQUIRED_REPORT_FILES = (
     "strategy_ranking.csv",
     "strategy_comparison.md",
     "final_summary.md",
+    "operational_selection.csv",
+    "operational_selection.md",
 )
 
 REQUIRED_EQUITY_COLUMNS = (
@@ -54,6 +62,14 @@ REQUIRED_TRADES_COLUMNS = (
     "entry_price",
     "exit_price",
     "return",
+    "planned_holding_days",
+)
+
+REQUIRED_CANDIDATE_COLUMNS = (
+    "date",
+    "symbol",
+    "score",
+    "strategy_id",
     "planned_holding_days",
 )
 
@@ -189,6 +205,15 @@ def load_run_snapshot(root: Path, strategy_id: str) -> RunSnapshot:
                 f"invalid trades.csv header for {strategy_id}: expected prefix {REQUIRED_TRADES_COLUMNS}, got {tuple(header)}"
             )
         row_counts["trades"] = count_csv_rows(trades_path)
+
+    candidates_path = run_dir / "candidates.csv"
+    if candidates_path.exists():
+        header = read_csv_header(candidates_path)
+        if not has_required_columns(header, REQUIRED_CANDIDATE_COLUMNS):
+            issues.append(
+                f"invalid candidates.csv header for {strategy_id}: expected prefix {REQUIRED_CANDIDATE_COLUMNS}, got {tuple(header)}"
+            )
+        row_counts["candidates"] = count_csv_rows(candidates_path)
 
     missing_metric_keys = [key for key in REQUIRED_METRICS_KEYS if key not in metrics]
     if missing_metric_keys:

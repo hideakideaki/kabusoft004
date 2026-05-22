@@ -2,12 +2,12 @@
 
 ## サマリー
 
-- Sharpe 基準の総合首位: worker_10c (Sharpe 1.540687, CAGR 0.362659)
-- ルールベース首位: worker_03 (Sharpe 1.22079)
-- 機械学習系首位: worker_10c (Sharpe 1.540687)
-- ベンチマーク参照: benchmark_buy_and_hold (Sharpe 0.797781, CAGR 0.16537)
+- Sharpe 首位: worker_06 (Sharpe 1.433331, CAGR 0.455072)
+- ルールベース首位: worker_03 (Sharpe 1.148811)
+- 機械学習首位: worker_06 (Sharpe 1.433331)
+- ベンチマーク: benchmark_buy_and_hold (Sharpe 0.826347, CAGR 0.17528)
 
-## 注意点
+## 備考
 
-- このレポートは `runs/*` の成果物から自動生成しており、Viewer が安定して比較できる形式を維持します。
-- 失敗結果やプレースホルダー結果も `runs/` に残し、比較履歴の再現性を保ちます。
+- `strategy_ranking.csv` は全期間の成績比較、`operational_selection.*` は実運用向けの長期安定性と直近成績の併記に使う。
+- split 設定を使った run と全期間 run を混在させると比較が崩れるため、運用判断前には同一設定で全戦略を再実行する。

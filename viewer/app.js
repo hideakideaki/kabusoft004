@@ -124,6 +124,42 @@ function getSelectedStrategy() {
   return state.repositoryData?.strategies.find((strategy) => strategy.id === state.selectedStrategyId) ?? null;
 }
 
+function getStrategyDisplayDateRange(strategy) {
+  const startCandidates = [
+    strategy?.meta?.train_start_date,
+    strategy?.meta?.start_date,
+  ].filter(Boolean);
+  const endCandidates = [
+    strategy?.meta?.test_end_date,
+    strategy?.meta?.end_date,
+  ].filter(Boolean);
+
+  return {
+    start: startCandidates.length ? startCandidates[0] : null,
+    end: endCandidates.length ? endCandidates[0] : null,
+  };
+}
+
+function getDisplayEquityRows(strategy) {
+  if (!strategy) {
+    return [];
+  }
+  const { start, end } = getStrategyDisplayDateRange(strategy);
+  return strategy.equity.filter((row) => {
+    const date = row.date ?? '';
+    if (!date) {
+      return false;
+    }
+    if (start && date < start) {
+      return false;
+    }
+    if (end && date > end) {
+      return false;
+    }
+    return true;
+  });
+}
+
 async function renderRawPreview(file) {
   if (!file) {
     elements.rawPreviewTitle.textContent = 'プレビュー';
@@ -364,7 +400,7 @@ function renderComparison() {
   renderLineChart(elements.equityChart, {
     series: selectedRows.map((strategy) => ({
       label: strategy.meta.strategy_name ?? strategy.id,
-      points: strategy.equity
+      points: getDisplayEquityRows(strategy)
         .map((row, index) => buildComparisonPoint(row, index))
         .filter((point) => point.x >= minTimestamp && point.x <= maxTimestamp)
         .filter((point) => Number.isFinite(point.y)),
@@ -434,11 +470,13 @@ function renderStrategyDetail() {
   `;
   elements.detailSummary.innerHTML = `<div class="markdown-body">${toMarkdownHtml(strategy.resultSummary)}</div>`;
 
+  const displayEquityRows = getDisplayEquityRows(strategy);
+
   renderLineChart(elements.detailEquityChart, {
     series: [
       {
         label: strategy.meta.strategy_name ?? strategy.id,
-        points: strategy.equity
+        points: displayEquityRows
           .map((row, index) => ({ x: index, y: Number(row.equity), label: row.date ?? String(index) }))
           .filter((point) => Number.isFinite(point.y)),
       },

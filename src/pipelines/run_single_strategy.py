@@ -5,7 +5,10 @@ import importlib
 import json
 import shutil
 import sys
+from datetime import date, datetime
 from pathlib import Path
+
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -15,6 +18,7 @@ from src.core.backtest_engine import run_backtest
 from src.core.contracts import STRATEGY_IDS, project_root
 from src.core.data_loader import (
     apply_backtest_date_range,
+    apply_test_date_range,
     load_backtest_config,
     load_feature_config,
     load_market_data,
@@ -44,6 +48,11 @@ STRATEGY_MODULES = {
     "worker_10e": "src.strategies.worker_10e_hybrid_event_pullback_blend",
     "worker_10f": "src.strategies.worker_10f_hybrid_event_pullback_exposure",
     "worker_11": "src.strategies.worker_11_low_vol_trend_continuation",
+    "worker_12": "src.strategies.worker_12_split_hybrid_ml",
+    "worker_13": "src.strategies.worker_13_meta_consensus",
+    "worker_14": "src.strategies.worker_14_relative_strength_defensive",
+    "worker_15": "src.strategies.worker_15_stable_compounder",
+    "worker_15b": "src.strategies.worker_15b_stable_compounder_relative",
 }
 
 
@@ -67,6 +76,7 @@ def _write_outputs(
     strategy_id: str,
     equity_df,
     trades_df,
+    candidates_df,
     metrics: dict,
     meta: dict,
     summary: str,
@@ -75,16 +85,80 @@ def _write_outputs(
     ensure_dir(run_dir)
     equity_df.to_csv(run_dir / "equity.csv", index=False, encoding="utf-8")
     trades_df.to_csv(run_dir / "trades.csv", index=False, encoding="utf-8")
+    candidates_df.to_csv(run_dir / "candidates.csv", index=False, encoding="utf-8")
     (run_dir / "metrics.json").write_text(
         json.dumps(metrics, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     (run_dir / "meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(meta, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
     (run_dir / "result_summary.md").write_text(summary, encoding="utf-8")
     return run_dir
+
+
+def _json_default(value):
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Path):
+        return str(value)
+    raise TypeError(f"Object of type {value.__class__.__name__} is not JSON serializable")
+
+
+def _normalize_candidates_df(signals_df, strategy_id: str, holding_days):
+    base_columns = ["date", "symbol", "score", "strategy_id", "planned_holding_days", "signal_rank"]
+    if signals_df is None or len(signals_df) == 0:
+        return pd.DataFrame(columns=base_columns)
+
+    candidates_df = signals_df.copy()
+    if "date" not in candidates_df.columns or "symbol" not in candidates_df.columns:
+        return pd.DataFrame(columns=base_columns)
+
+    if "score" not in candidates_df.columns:
+        candidates_df["score"] = 0.0
+
+    candidates_df = candidates_df.sort_values(["date", "score"], ascending=[True, False]).copy()
+    candidates_df["strategy_id"] = strategy_id
+    candidates_df["planned_holding_days"] = holding_days
+    candidates_df["signal_rank"] = (
+        candidates_df.groupby("date")["score"].rank(method="first", ascending=False).astype(int)
+    )
+
+    if pd.api.types.is_datetime64_any_dtype(candidates_df["date"]):
+        candidates_df["date"] = candidates_df["date"].dt.strftime("%Y-%m-%d")
+
+    ordered_columns = base_columns + [
+        column
+        for column in candidates_df.columns
+        if column not in base_columns
+    ]
+    return candidates_df[ordered_columns]
+
+
+def _format_period_lines(backtest_cfg: dict) -> list[str]:
+    if any(
+        backtest_cfg.get(key)
+        for key in ("train_start_date", "train_end_date", "test_start_date", "test_end_date")
+    ):
+        train_label = (
+            f"{backtest_cfg.get('train_start_date') or '先頭'} から "
+            f"{backtest_cfg.get('train_end_date') or '末尾'}"
+        )
+        test_label = (
+            f"{backtest_cfg.get('test_start_date') or '先頭'} から "
+            f"{backtest_cfg.get('test_end_date') or '末尾'}"
+        )
+        return [
+            f"- 学習期間設定: {train_label}",
+            f"- テスト期間設定: {test_label}",
+        ]
+
+    period_label = (
+        f"{backtest_cfg.get('start_date') or '先頭'} から "
+        f"{backtest_cfg.get('end_date') or '末尾'}"
+    )
+    return [f"- バックテスト期間設定: {period_label}"]
 
 
 def _build_summary(
@@ -96,21 +170,24 @@ def _build_summary(
     tested: list[dict],
     backtest_cfg: dict,
 ) -> str:
-    period_label = f"{backtest_cfg.get('start_date') or '先頭'} から {backtest_cfg.get('end_date') or '末尾'}"
     lines = [
         f"# {strategy_id}",
         "",
         f"- 戦略種別: {_display_strategy_type(strategy_type)}",
         f"- 初期資金: {int(initial_capital):,} 円",
-        f"- バックテスト期間設定: {period_label}",
-        f"- 採用保有日数: {'ベンチマーク長期保有' if holding_days is None else f'{holding_days}営業日'}",
+        *_format_period_lines(backtest_cfg),
+        (
+            "- 採用保有日数: ベンチマーク長期保有"
+            if holding_days is None
+            else f"- 採用保有日数: {holding_days}営業日"
+        ),
         f"- CAGR: {metrics['cagr']}",
         f"- Sharpe: {metrics['sharpe']}",
         f"- 最大ドローダウン: {metrics['max_drawdown']}",
         f"- 勝率: {metrics['win_rate']}",
         f"- 取引数: {metrics['num_trades']}",
         "",
-        "## 試験結果",
+        "## 試行結果",
         "",
     ]
     for item in tested:
@@ -143,7 +220,7 @@ def _clean_models_dir(run_dir: Path) -> None:
 def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False) -> dict:
     backtest_cfg = load_backtest_config(root)
     feature_cfg = load_feature_config(root)
-    walk_cfg = load_walkforward_config(root)
+    walk_cfg = {**load_walkforward_config(root), **backtest_cfg}
     features = _prepare_market(root, backtest_cfg, feature_cfg)
     run_dir = root / "runs" / strategy_id
     ensure_dir(run_dir)
@@ -153,6 +230,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             features,
             {**backtest_cfg, "_project_root": str(root)},
         )
+        candidates_df = _normalize_candidates_df(None, strategy_id, None)
         metrics = calculate_metrics(equity_df, trades_df)
         meta = {
             "strategy_id": strategy_id,
@@ -163,12 +241,17 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             "initial_capital": backtest_cfg["initial_capital"],
             "start_date": backtest_cfg.get("start_date"),
             "end_date": backtest_cfg.get("end_date"),
+            "train_start_date": backtest_cfg.get("train_start_date"),
+            "train_end_date": backtest_cfg.get("train_end_date"),
+            "test_start_date": backtest_cfg.get("test_start_date"),
+            "test_end_date": backtest_cfg.get("test_end_date"),
             "universe_size": backtest_cfg["universe_size"],
             "selected_holding_days": None,
             "tested_holding_days": [None],
             "models_saved": False,
             "benchmark_symbol": engine_meta.get("benchmark_symbol"),
             "selected_engine_meta": engine_meta,
+            "candidate_count": 0,
         }
         summary = _build_summary(
             strategy_id,
@@ -179,11 +262,21 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             [{"holding_days": None, "metrics": metrics}],
             backtest_cfg,
         )
-        run_dir = _write_outputs(root, strategy_id, equity_df, trades_df, metrics, meta, summary)
+        run_dir = _write_outputs(
+            root,
+            strategy_id,
+            equity_df,
+            trades_df,
+            candidates_df,
+            metrics,
+            meta,
+            summary,
+        )
     else:
         module = _load_strategy_module(strategy_id)
         strategy_backtest_cfg = {
             **backtest_cfg,
+            "_project_root": str(root),
             **getattr(module, "BACKTEST_OVERRIDES", {}),
         }
         strategy_cfg = {"backtest": strategy_backtest_cfg, "walkforward": walk_cfg}
@@ -206,6 +299,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             else:
                 signals, walkforward_folds = generated, []
 
+            signals = apply_test_date_range(signals, strategy_backtest_cfg)
             equity_df, trades_df, engine_meta = run_backtest(
                 signals,
                 features,
@@ -216,6 +310,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
                 {
                     "holding_days": int(holding_days),
                     "signals": len(signals),
+                    "signals_df": signals.copy(),
                     "equity_df": equity_df,
                     "trades_df": trades_df,
                     "metrics": metrics,
@@ -242,6 +337,10 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             "initial_capital": backtest_cfg["initial_capital"],
             "start_date": backtest_cfg.get("start_date"),
             "end_date": backtest_cfg.get("end_date"),
+            "train_start_date": backtest_cfg.get("train_start_date"),
+            "train_end_date": backtest_cfg.get("train_end_date"),
+            "test_start_date": backtest_cfg.get("test_start_date"),
+            "test_end_date": backtest_cfg.get("test_end_date"),
             "universe_size": backtest_cfg["universe_size"],
             "selected_holding_days": best["holding_days"],
             "tested_holding_days": list(strategy_backtest_cfg["holding_days_tested"]),
@@ -255,6 +354,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             "models_saved": module.STRATEGY_TYPE == "ml_based",
             "backtest_overrides": getattr(module, "BACKTEST_OVERRIDES", {}),
             "selected_engine_meta": best["engine_meta"],
+            "candidate_count": best["signals"],
         }
         summary = _build_summary(
             strategy_id,
@@ -265,11 +365,17 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             [{"holding_days": item["holding_days"], "metrics": item["metrics"]} for item in tested_runs],
             backtest_cfg,
         )
+        candidates_df = _normalize_candidates_df(
+            best["signals_df"],
+            strategy_id,
+            best["holding_days"],
+        )
         run_dir = _write_outputs(
             root,
             strategy_id,
             best["equity_df"],
             best["trades_df"],
+            candidates_df,
             best["metrics"],
             meta,
             summary,

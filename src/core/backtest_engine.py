@@ -221,7 +221,7 @@ def run_backtest(signals: pd.DataFrame, prices: pd.DataFrame, config: dict):
             {"date": current_date.strftime("%Y-%m-%d"), "equity": round(portfolio_value, 6)}
         )
 
-    equity_df = pd.DataFrame(equity_rows)
+    equity_df = pd.DataFrame(equity_rows, columns=["date", "equity"])
     trades_df = pd.DataFrame(
         trades,
         columns=[

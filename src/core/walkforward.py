@@ -10,6 +10,15 @@ from src.core.feature_engineering import FEATURE_COLUMNS
 from src.core.utils import ensure_dir
 
 
+def _within_range(date_value, start_date: str | None, end_date: str | None) -> bool:
+    ts = pd.Timestamp(date_value)
+    if start_date and ts < pd.to_datetime(start_date):
+        return False
+    if end_date and ts > pd.to_datetime(end_date):
+        return False
+    return True
+
+
 def run_walkforward(
     data: pd.DataFrame,
     model_factory: Callable[[], object],
@@ -37,6 +46,18 @@ def run_walkforward(
         test_dates = dates[start : start + test_days]
         if len(test_dates) == 0:
             break
+        if not _within_range(train_dates[0], cfg.get("train_start_date"), cfg.get("train_end_date")):
+            start += step_days
+            continue
+        if not _within_range(train_dates[-1], cfg.get("train_start_date"), cfg.get("train_end_date")):
+            start += step_days
+            continue
+        if not _within_range(test_dates[0], cfg.get("test_start_date"), cfg.get("test_end_date")):
+            start += step_days
+            continue
+        if not _within_range(test_dates[-1], cfg.get("test_start_date"), cfg.get("test_end_date")):
+            start += step_days
+            continue
 
         train_df = usable[usable["date"].isin(train_dates)]
         test_df = usable[usable["date"].isin(test_dates)]
