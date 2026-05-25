@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KabuSoft Viewer</title>
-  <link rel="stylesheet" href="style.css?v=20260507b">
+  <link rel="stylesheet" href="style.css?v=20260522a">
 </head>
 <body>
   <div class="page-shell">
@@ -13,7 +13,7 @@
         <p class="eyebrow">Investment Research Viewer</p>
         <h1>KabuSoft Viewer</h1>
         <p class="hero-text">
-          `runs/`、`reports/`、`data/` を横断して、戦略比較、詳細確認、raw data の閲覧を行う静的 Viewer です。
+          `runs/` `reports/` `data/` と `live_signals/` をブラウザ内で読み込み、研究結果と翌営業日向け候補を切り分けて確認する静的 Viewer です。
         </p>
       </div>
       <div class="hero-actions">
@@ -21,7 +21,7 @@
         <button id="folder-input-button" class="secondary-button" type="button">フォルダ入力で開く</button>
         <input id="directory-input" type="file" webkitdirectory directory multiple hidden>
         <p id="load-hint" class="muted">
-          `viewer/index.html` を開き、このリポジトリのルートフォルダを指定してください。
+          `viewer/index.html` は `python -m http.server 8080` などで配信して開くと安定します。
         </p>
       </div>
     </header>
@@ -36,7 +36,7 @@
           <span id="source-badge" class="badge neutral">未読み込み</span>
         </div>
         <p id="status-message" class="status-text">
-          リポジトリを選択すると、戦略結果、レポート、raw data をブラウザ内で解析します。
+          リポジトリを選択すると、戦略結果、レポート、raw data、live signals をブラウザで解析します。
         </p>
         <div id="summary-cards" class="summary-grid"></div>
         <div class="status-log-block">
@@ -53,153 +53,198 @@
       </section>
 
       <section class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Strategy Filters</p>
-            <h2>戦略フィルタ</h2>
-          </div>
-        </div>
-        <div class="filter-grid">
-          <label class="field">
-            <span>検索</span>
-            <input id="strategy-search" type="search" placeholder="strategy id / name">
-          </label>
-          <label class="field">
-            <span>戦略種別</span>
-            <select id="strategy-type-filter"></select>
-          </label>
-          <label class="field checkbox-field">
-            <input id="benchmark-only-filter" type="checkbox">
-            <span>benchmark のみ表示</span>
-          </label>
+        <div class="tab-strip" role="tablist" aria-label="Viewer tabs">
+          <button id="research-tab-button" class="tab-button is-active" type="button" role="tab" aria-selected="true">Research</button>
+          <button id="live-signals-tab-button" class="tab-button" type="button" role="tab" aria-selected="false">Live Signals</button>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Ranking</p>
-            <h2>戦略一覧と比較対象選択</h2>
+      <div id="research-tab-panel" class="tab-panel is-active" role="tabpanel">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Strategy Filters</p>
+              <h2>戦略フィルタ</h2>
+            </div>
           </div>
-          <p id="comparison-limit-text" class="muted"></p>
-        </div>
-        <div id="strategy-table-container"></div>
-      </section>
+          <div class="filter-grid">
+            <label class="field">
+              <span>検索</span>
+              <input id="strategy-search" type="search" placeholder="strategy id / name">
+            </label>
+            <label class="field">
+              <span>戦略種別</span>
+              <select id="strategy-type-filter"></select>
+            </label>
+            <label class="field checkbox-field">
+              <input id="benchmark-only-filter" type="checkbox">
+              <span>benchmark のみ表示</span>
+            </label>
+          </div>
+        </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Comparison</p>
-            <h2>複数戦略比較</h2>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Ranking</p>
+              <h2>戦略一覧と比較選択</h2>
+            </div>
+            <p id="comparison-limit-text" class="muted"></p>
           </div>
-        </div>
-        <div class="comparison-grid">
-          <div class="chart-card">
-            <h3>Equity Curve</h3>
-            <div id="comparison-range-controls" class="comparison-range-controls"></div>
-            <div id="equity-chart"></div>
-          </div>
-          <div class="chart-card">
-            <h3>Sharpe Comparison</h3>
-            <div id="metric-chart"></div>
-          </div>
-        </div>
-      </section>
+          <div id="strategy-table-container"></div>
+        </section>
 
-      <section class="panel detail-panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Strategy Detail</p>
-            <h2 id="detail-title">戦略詳細</h2>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Comparison</p>
+              <h2>複数戦略比較</h2>
+            </div>
           </div>
-          <span id="detail-badge" class="badge neutral">未選択</span>
-        </div>
-        <div id="detail-metrics" class="metric-grid"></div>
-        <div class="detail-grid">
-          <article class="subpanel">
-            <h3>Meta</h3>
-            <div id="detail-meta"></div>
-          </article>
-          <article class="subpanel">
-            <h3>Result Summary</h3>
-            <div id="detail-summary"></div>
-          </article>
-          <article class="subpanel wide">
-            <h3>Asset Curve</h3>
-            <div id="detail-equity-chart"></div>
-          </article>
-          <article class="subpanel wide">
-            <h3>Equity Preview</h3>
-            <div id="detail-equity-table"></div>
-          </article>
-          <article class="subpanel wide">
-            <h3>Trades Preview</h3>
-            <div id="detail-trades-table"></div>
-          </article>
-        </div>
-      </section>
+          <div class="comparison-grid">
+            <div class="chart-card">
+              <h3>Equity Curve</h3>
+              <div id="comparison-range-controls" class="comparison-range-controls"></div>
+              <div id="equity-chart"></div>
+            </div>
+            <div class="chart-card">
+              <h3>Sharpe Comparison</h3>
+              <div id="metric-chart"></div>
+            </div>
+          </div>
+        </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Reports</p>
-            <h2>全体レポート</h2>
+        <section class="panel detail-panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Strategy Detail</p>
+              <h2 id="detail-title">戦略詳細</h2>
+            </div>
+            <span id="detail-badge" class="badge neutral">未選択</span>
           </div>
-        </div>
-        <div class="reports-grid">
-          <article class="subpanel">
-            <h3>strategy_comparison.md</h3>
-            <div id="report-comparison"></div>
-          </article>
-          <article class="subpanel">
-            <h3>final_summary.md</h3>
-            <div id="report-final"></div>
-          </article>
-        </div>
-      </section>
+          <div id="detail-metrics" class="metric-grid"></div>
+          <div class="detail-grid">
+            <article class="subpanel">
+              <h3>Meta</h3>
+              <div id="detail-meta"></div>
+            </article>
+            <article class="subpanel">
+              <h3>Result Summary</h3>
+              <div id="detail-summary"></div>
+            </article>
+            <article class="subpanel wide">
+              <h3>Asset Curve</h3>
+              <div id="detail-equity-chart"></div>
+            </article>
+            <article class="subpanel wide">
+              <h3>Equity Preview</h3>
+              <div id="detail-equity-table"></div>
+            </article>
+            <article class="subpanel wide">
+              <h3>Trades Preview</h3>
+              <div id="detail-trades-table"></div>
+            </article>
+          </div>
+        </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Raw Data</p>
-            <h2>raw data / processed data</h2>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Reports</p>
+              <h2>全体レポート</h2>
+            </div>
           </div>
-        </div>
-        <div class="raw-toolbar">
-          <label class="field">
-            <span>データ検索</span>
-            <input id="data-search" type="search" placeholder="例: 1301">
-          </label>
-          <label class="field">
-            <span>カテゴリ</span>
-            <select id="data-kind-filter"></select>
-          </label>
-        </div>
-        <div class="raw-grid">
-          <article class="subpanel">
-            <h3>ファイル一覧</h3>
-            <div id="raw-file-list"></div>
-          </article>
-          <article class="subpanel wide">
-            <h3 id="raw-preview-title">プレビュー</h3>
-            <div id="raw-summary"></div>
-            <div id="raw-preview-table"></div>
-          </article>
-        </div>
-      </section>
+          <div class="reports-grid">
+            <article class="subpanel">
+              <h3>strategy_comparison.md</h3>
+              <div id="report-comparison"></div>
+            </article>
+            <article class="subpanel">
+              <h3>final_summary.md</h3>
+              <div id="report-final"></div>
+            </article>
+          </div>
+        </section>
 
-      <section class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Issues</p>
-            <h2>欠損・パース失敗</h2>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Raw Data</p>
+              <h2>raw data / processed data</h2>
+            </div>
           </div>
-        </div>
-        <div id="issues-container"></div>
-      </section>
+          <div class="raw-toolbar">
+            <label class="field">
+              <span>データ検索</span>
+              <input id="data-search" type="search" placeholder="例: 1301">
+            </label>
+            <label class="field">
+              <span>カテゴリ</span>
+              <select id="data-kind-filter"></select>
+            </label>
+          </div>
+          <div class="raw-grid">
+            <article class="subpanel">
+              <h3>ファイル一覧</h3>
+              <div id="raw-file-list"></div>
+            </article>
+            <article class="subpanel wide">
+              <h3 id="raw-preview-title">プレビュー</h3>
+              <div id="raw-summary"></div>
+              <div id="raw-preview-table"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Issues</p>
+              <h2>欠損・パース結果</h2>
+            </div>
+          </div>
+          <div id="issues-container"></div>
+        </section>
+      </div>
+
+      <div id="live-signals-tab-panel" class="tab-panel" role="tabpanel" hidden>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Live Signals</p>
+              <h2>翌営業日候補</h2>
+            </div>
+          </div>
+          <div class="raw-grid">
+            <article class="subpanel">
+              <h3>Signal Files</h3>
+              <div id="live-signal-list"></div>
+            </article>
+            <article class="subpanel wide">
+              <div class="panel-header">
+                <div>
+                  <h3 id="live-signal-detail-title">Live Signal Detail</h3>
+                </div>
+                <span id="live-signal-detail-badge" class="badge neutral">未選択</span>
+              </div>
+              <div id="live-signal-summary" class="metric-grid"></div>
+              <div class="detail-grid">
+                <article class="subpanel">
+                  <h3>Meta</h3>
+                  <div id="live-signal-meta"></div>
+                </article>
+                <article class="subpanel wide">
+                  <h3>Candidates</h3>
+                  <div id="live-signal-candidates-table"></div>
+                </article>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 
-  <script type="module" src="app.js?v=20260507b"></script>
+  <script type="module" src="app.js?v=20260522a"></script>
 </body>
 </html>

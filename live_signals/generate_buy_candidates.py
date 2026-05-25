@@ -28,6 +28,8 @@ from src.core.feature_engineering import FEATURE_COLUMNS, build_features  # noqa
 
 
 STRATEGY_MODULES = {
+    "worker_01": "src.strategies.worker_01_breakout_volume",
+    "worker_02": "src.strategies.worker_02_mean_reversion_rebound",
     "worker_04": "src.strategies.worker_04_logistic_regression",
     "worker_05": "src.strategies.worker_05_gradient_boosting",
     "worker_06": "src.strategies.worker_06_random_forest",
@@ -38,6 +40,8 @@ STRATEGY_MODULES = {
     "worker_10d": "src.strategies.worker_10d_hybrid_event_pullback_correlation",
     "worker_10e": "src.strategies.worker_10e_hybrid_event_pullback_blend",
     "worker_10f": "src.strategies.worker_10f_hybrid_event_pullback_exposure",
+    "worker_17": "src.strategies.worker_17_regime_switch_meta",
+    "worker_17b": "src.strategies.worker_17b_regime_switch_adaptive",
     "worker_15b": "src.strategies.worker_15b_stable_compounder_relative",
 }
 
@@ -424,6 +428,79 @@ def _run_hybrid_model(
     return candidate_df
 
 
+def _run_rule_based_live(
+    module: Any,
+    features: pd.DataFrame,
+    backtest_cfg: dict,
+    walk_cfg: dict,
+    holding_days: int,
+) -> tuple[pd.Timestamp, pd.DataFrame, pd.DataFrame, str, str, int]:
+    latest_date, latest_df = _latest_prediction_frame(features)
+    signals = module.generate_signals(
+        features,
+        {"backtest": backtest_cfg, "walkforward": walk_cfg},
+        holding_days,
+        model_dir=None,
+    )
+    if signals.empty:
+        candidates = pd.DataFrame(columns=["date", "symbol", "score"])
+    else:
+        candidates = signals[signals["date"] == latest_date].copy()
+    return latest_date, latest_df, candidates, "", "", 0
+
+
+def _run_regime_switch_live(
+    module: Any,
+    features: pd.DataFrame,
+    backtest_cfg: dict,
+    walk_cfg: dict,
+    holding_days: int,
+) -> tuple[pd.Timestamp, pd.DataFrame, pd.DataFrame, str, str, int, list[dict[str, Any]]]:
+    latest_date, latest_df = _latest_prediction_frame(features)
+    unique_dates = sorted(features["date"].dropna().unique())
+    prior_dates = [date_value for date_value in unique_dates if pd.Timestamp(date_value) < latest_date]
+    train_days = int(walk_cfg["train_days"])
+    if len(prior_dates) < train_days:
+        raise RuntimeError(
+            f"not enough training dates for regime-switch live mode: required {train_days}, available {len(prior_dates)}"
+        )
+
+    train_dates = prior_dates[-train_days:]
+    config = {
+        "backtest": {
+            **backtest_cfg,
+            **getattr(module, "BACKTEST_OVERRIDES", {}),
+            "holding_days": int(holding_days),
+        },
+        "walkforward": walk_cfg,
+    }
+    component_signals = {
+        strategy_id: module._resolve_component_signals(strategy_id, features, config, holding_days)
+        for strategy_id in module.MAIN_CANDIDATE_STRATEGIES
+    }
+    selected = module._select_main_strategies(
+        component_signals,
+        features,
+        config,
+        holding_days,
+        train_dates,
+    )
+    if isinstance(selected, tuple):
+        selected_main = selected[0]
+    else:
+        selected_main = selected
+    candidates = module._aggregate_regime_switch_for_dates(selected_main, component_signals, [latest_date])
+    return (
+        latest_date,
+        latest_df,
+        candidates,
+        pd.Timestamp(train_dates[0]).strftime("%Y-%m-%d"),
+        pd.Timestamp(train_dates[-1]).strftime("%Y-%m-%d"),
+        int(len(train_dates)),
+        selected_main,
+    )
+
+
 def _run_worker_15b_live(
     root: Path,
     module: Any,
@@ -567,7 +644,23 @@ def generate_buy_candidates(
     holding_days = _selected_holding_days(root, strategy_id, fallback_holding_days)
 
     features = _prepare_features(root)
-    if strategy_id == "worker_15b":
+    selected_main: list[dict[str, Any]] | None = None
+    if strategy_id in {"worker_01", "worker_02"}:
+        (
+            latest_date,
+            latest_df,
+            candidates,
+            train_start,
+            train_end,
+            train_rows,
+        ) = _run_rule_based_live(
+            module,
+            features,
+            backtest_cfg,
+            walk_cfg,
+            holding_days,
+        )
+    elif strategy_id == "worker_15b":
         (
             latest_date,
             latest_df,
@@ -577,6 +670,22 @@ def generate_buy_candidates(
             train_rows,
         ) = _run_worker_15b_live(
             root,
+            module,
+            features,
+            backtest_cfg,
+            walk_cfg,
+            holding_days,
+        )
+    elif strategy_id in {"worker_17", "worker_17b"}:
+        (
+            latest_date,
+            latest_df,
+            candidates,
+            train_start,
+            train_end,
+            train_rows,
+            selected_main,
+        ) = _run_regime_switch_live(
             module,
             features,
             backtest_cfg,
@@ -604,6 +713,29 @@ def generate_buy_candidates(
                 holding_days,
             )
         train_rows = int(len(train_df))
+
+    if not candidates.empty:
+        enrich_columns = [
+            "date",
+            "symbol",
+            "close",
+            "volume",
+            "ret_1",
+            "ret_5",
+            "ret_20",
+            "volatility_20",
+            "volume_ratio_20",
+            "range_pct",
+            "breakout_strength",
+            "rebound_strength",
+        ]
+        latest_enriched = latest_df[[column for column in enrich_columns if column in latest_df.columns]].copy()
+        merge_keys = {"date", "symbol"}
+        drop_columns = [
+            column for column in enrich_columns if column in candidates.columns and column not in merge_keys
+        ]
+        candidates = candidates.drop(columns=drop_columns, errors="ignore")
+        candidates = candidates.merge(latest_enriched, on=["date", "symbol"], how="left")
 
     planned_entry_date = latest_date + pd.Timedelta(days=int(entry_offset_days))
     output = _format_output(
@@ -640,6 +772,8 @@ def generate_buy_candidates(
         "csv_path": str(csv_path),
         "candidates": output.to_dict(orient="records"),
     }
+    if selected_main is not None:
+        payload["selected_main"] = selected_main
     json_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

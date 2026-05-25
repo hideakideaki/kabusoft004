@@ -155,7 +155,75 @@ function createComputedRanking(strategies) {
   }));
 }
 
-function buildRepositoryData({ strategies, reports, dataFiles, issues }) {
+function getFileNameFromPath(value) {
+  return String(value ?? '').split(/[\\/]/).at(-1) ?? '';
+}
+
+async function parseLiveSignalOutputs(outputRefs, issues) {
+  const items = [];
+  const jsonNames = [...outputRefs.keys()]
+    .filter((name) => name.endsWith('.json'))
+    .sort((left, right) => right.localeCompare(left, 'ja'));
+
+  for (const jsonName of jsonNames) {
+    const ref = outputRefs.get(jsonName);
+    if (!ref) {
+      continue;
+    }
+    try {
+      const payload = safeParseJson(await readTextFromReference(ref));
+      const csvName = getFileNameFromPath(payload.csv_path) || jsonName.replace(/\.json$/i, '.csv');
+      const csvRef = outputRefs.get(csvName);
+      let csvRows = [];
+      if (csvRef) {
+        csvRows = parseCsv(await readTextFromReference(csvRef));
+      }
+      const type = payload.support_strategy_id ? 'meta_consensus' : 'strategy_signal';
+      const strategyLabel = payload.strategy_id ?? payload.support_strategy_id ?? 'live_signal';
+      items.push({
+        id: jsonName,
+        name: jsonName,
+        type,
+        title: type === 'meta_consensus'
+          ? `Meta Consensus ${payload.planned_entry_date ?? ''}`.trim()
+          : `${strategyLabel} ${payload.planned_entry_date ?? ''}`.trim(),
+        jsonPath: `live_signals/outputs/${jsonName}`,
+        csvPath: csvRef ? `live_signals/outputs/${csvName}` : null,
+        generatedAt: payload.generated_at ?? null,
+        signalDate: payload.signal_date ?? null,
+        plannedEntryDate: payload.planned_entry_date ?? null,
+        strategyId: payload.strategy_id ?? null,
+        supportStrategyId: payload.support_strategy_id ?? null,
+        mainStrategyIds: payload.main_strategy_ids ?? [],
+        entryOffsetDays: payload.entry_offset_days ?? null,
+        holdingDays: payload.holding_days ?? null,
+        topNPerStrategy: payload.top_n_per_strategy ?? null,
+        candidateCount: payload.candidate_count ?? csvRows.length,
+        csvRows,
+        csvColumns: csvRows[0] ? Object.keys(csvRows[0]) : [],
+        payload,
+      });
+    } catch (error) {
+      issues.push(createIssue('live_signals', `live_signals/outputs/${jsonName}`, `隱ｭ縺ｿ霎ｼ縺ｿ縺ｫ螟ｱ謨励＠縺ｾ縺励◆: ${error.message}`));
+    }
+  }
+
+  items.sort((left, right) => {
+    const leftTime = Date.parse(left.generatedAt ?? '');
+    const rightTime = Date.parse(right.generatedAt ?? '');
+    return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+  });
+
+  return {
+    items,
+    summary: {
+      files: outputRefs.size,
+      payloads: items.length,
+    },
+  };
+}
+
+function buildRepositoryData({ strategies, reports, dataFiles, liveSignals, issues }) {
   return {
     strategies: sortStrategiesBySharpe(strategies),
     reports: {
@@ -163,12 +231,14 @@ function buildRepositoryData({ strategies, reports, dataFiles, issues }) {
       ranking: reports.ranking.length ? reports.ranking : createComputedRanking(strategies),
     },
     dataFiles,
+    liveSignals,
     issues,
     summary: {
       strategies: strategies.length,
       benchmarkCount: strategies.filter((strategy) => strategy.meta.benchmark).length,
       rawFiles: dataFiles.filter((file) => file.kind === 'raw').length,
       processedFiles: dataFiles.filter((file) => file.kind === 'processed').length,
+      liveSignalPayloads: liveSignals?.summary?.payloads ?? 0,
       issueCount: issues.length,
     },
   };
@@ -182,6 +252,7 @@ export async function loadRepositoryFromDirectoryHandle(rootHandle, options = {}
   const runsHandle = topEntries.get('runs');
   const reportsHandle = topEntries.get('reports');
   const dataHandle = topEntries.get('data');
+  const liveSignalsHandle = topEntries.get('live_signals');
 
   if (!runsHandle || runsHandle.kind !== 'directory') {
     issues.push(createIssue('root', 'runs/', '`runs/` ディレクトリが見つかりません。'));
@@ -241,8 +312,26 @@ export async function loadRepositoryFromDirectoryHandle(rootHandle, options = {}
     }
   }
 
+  let liveSignals = { items: [], summary: { files: 0, payloads: 0 } };
+  if (liveSignalsHandle?.kind === 'directory') {
+    try {
+      progress('`live_signals/outputs/` を読み込み中です。');
+      const outputsHandle = await liveSignalsHandle.getDirectoryHandle('outputs');
+      const outputRefs = new Map();
+      for await (const [name, entry] of outputsHandle.entries()) {
+        if (entry.kind === 'file' && !name.startsWith('.')) {
+          outputRefs.set(name, { kind: 'handle', handle: entry });
+        }
+      }
+      liveSignals = await parseLiveSignalOutputs(outputRefs, issues);
+      progress(`live_signals/outputs/ を ${liveSignals.summary.payloads} 件読み込みました。`, 'good');
+    } catch {
+      progress('`live_signals/outputs/` は見つからないか空です。', 'warn');
+    }
+  }
+
   progress('読み込み処理を集計しています。');
-  return buildRepositoryData({ strategies, reports, dataFiles, issues });
+  return buildRepositoryData({ strategies, reports, dataFiles, liveSignals, issues });
 }
 
 export async function loadRepositoryFromFileList(files, options = {}) {
@@ -304,9 +393,16 @@ export async function loadRepositoryFromFileList(files, options = {}) {
     })
     .sort((left, right) => left.path.localeCompare(right.path, 'ja'));
   progress(`data ファイルを ${dataFiles.length} 件検出しました。`);
+  const liveSignalRefs = new Map(
+    [...refs.entries()]
+      .filter(([path]) => path.startsWith('live_signals/outputs/') && !path.split('/').at(-1).startsWith('.'))
+      .map(([path, ref]) => [path.split('/').slice(2).join('/'), ref]),
+  );
+  const liveSignals = await parseLiveSignalOutputs(liveSignalRefs, issues);
+  progress(`live_signals ファイルを ${liveSignals.summary.payloads} 件検出しました。`);
   progress('読み込み処理を集計しています。');
 
-  return buildRepositoryData({ strategies, reports, dataFiles, issues });
+  return buildRepositoryData({ strategies, reports, dataFiles, liveSignals, issues });
 }
 
 export async function loadDataFilePreview(file) {

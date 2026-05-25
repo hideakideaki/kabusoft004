@@ -84,3 +84,12 @@
 - benchmark を直接見ずに、低ボラ・浅い押し・小さいギャップの銘柄だけを選ぶ stable compounder 戦略。
 - 首位よりも、区間を切っても崩れにくい右肩上がり寄りの成績を狙う。
 - 現在は walk-forward で fold ごとに学習し、長期の頑健性を見たうえで直近 fold の良し悪しを運用判断に使う前提。
+## worker_16
+- live の `meta_consensus` を履歴検証できるようにした backtest 版。
+- 各 fold の train 期間で主力候補群の実績を比較し、上位の主力戦略だけを test 期間で合議する。`worker_15b` は安定確認の補助戦略として使う。
+## worker_17
+- `worker_16` を固定補助型から切り替え、train 期間の直近成績で主力戦略を入れ替える regime-switch 型。
+- `worker_15b` は使わず、長期上位かつ直近悪化時に代替しやすい候補群から、その fold 時点で状態の良い戦略だけを採用する。
+## worker_17b
+- `worker_17` の adaptive 版で、score 差が十分大きい fold は単独主力、僅差 fold は上位2戦略混合、適格なし fold はキャッシュにする。
+- 単独化の上振れと、混合の保険の両方を残す regime-switch 型。

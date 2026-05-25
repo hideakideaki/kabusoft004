@@ -18,6 +18,10 @@ const elements = {
   statusMessage: document.querySelector('#status-message'),
   statusLog: document.querySelector('#status-log'),
   summaryCards: document.querySelector('#summary-cards'),
+  researchTabButton: document.querySelector('#research-tab-button'),
+  liveSignalsTabButton: document.querySelector('#live-signals-tab-button'),
+  researchTabPanel: document.querySelector('#research-tab-panel'),
+  liveSignalsTabPanel: document.querySelector('#live-signals-tab-panel'),
   strategySearch: document.querySelector('#strategy-search'),
   strategyTypeFilter: document.querySelector('#strategy-type-filter'),
   benchmarkOnlyFilter: document.querySelector('#benchmark-only-filter'),
@@ -43,6 +47,12 @@ const elements = {
   rawSummary: document.querySelector('#raw-summary'),
   rawPreviewTable: document.querySelector('#raw-preview-table'),
   issuesContainer: document.querySelector('#issues-container'),
+  liveSignalList: document.querySelector('#live-signal-list'),
+  liveSignalDetailTitle: document.querySelector('#live-signal-detail-title'),
+  liveSignalDetailBadge: document.querySelector('#live-signal-detail-badge'),
+  liveSignalSummary: document.querySelector('#live-signal-summary'),
+  liveSignalMeta: document.querySelector('#live-signal-meta'),
+  liveSignalCandidatesTable: document.querySelector('#live-signal-candidates-table'),
 };
 
 function renderStatusLog() {
@@ -102,6 +112,7 @@ function renderSummaryCards() {
     ['benchmark', summary.benchmarkCount],
     ['raw files', summary.rawFiles],
     ['processed files', summary.processedFiles],
+    ['live signals', summary.liveSignalPayloads ?? 0],
     ['issues', summary.issueCount],
   ];
   elements.summaryCards.innerHTML = cards.map(([label, value]) => `
@@ -122,6 +133,26 @@ function getVisibleStrategies() {
 
 function getSelectedStrategy() {
   return state.repositoryData?.strategies.find((strategy) => strategy.id === state.selectedStrategyId) ?? null;
+}
+
+function getSelectedLiveSignal() {
+  return state.repositoryData?.liveSignals?.items?.find((item) => item.id === state.selectedLiveSignalId) ?? null;
+}
+
+function renderTabState() {
+  const isResearch = state.activeTab !== 'live_signals';
+  elements.researchTabButton?.classList.toggle('is-active', isResearch);
+  elements.researchTabButton?.setAttribute('aria-selected', String(isResearch));
+  elements.liveSignalsTabButton?.classList.toggle('is-active', !isResearch);
+  elements.liveSignalsTabButton?.setAttribute('aria-selected', String(!isResearch));
+  if (elements.researchTabPanel) {
+    elements.researchTabPanel.hidden = !isResearch;
+    elements.researchTabPanel.classList.toggle('is-active', isResearch);
+  }
+  if (elements.liveSignalsTabPanel) {
+    elements.liveSignalsTabPanel.hidden = isResearch;
+    elements.liveSignalsTabPanel.classList.toggle('is-active', !isResearch);
+  }
 }
 
 function getStrategyDisplayDateRange(strategy) {
@@ -564,7 +595,127 @@ function renderIssues() {
   `;
 }
 
+function renderLiveSignalMeta(item) {
+  const payload = item?.payload;
+  if (!payload) {
+    elements.liveSignalMeta.innerHTML = '<div class="empty-state">live signal を選択してください。</div>';
+    return;
+  }
+  const entries = Object.entries(payload)
+    .filter(([key]) => !['candidates', 'main_payloads'].includes(key))
+    .map(([key, value]) => {
+      if (Array.isArray(value)) {
+        return [key, value.join(', ')];
+      }
+      if (value && typeof value === 'object') {
+        return [key, `object (${Object.keys(value).length})`];
+      }
+      return [key, String(value)];
+    });
+
+  elements.liveSignalMeta.innerHTML = `
+    <dl class="meta-list">
+      ${entries.map(([key, value]) => `
+        <div class="meta-row">
+          <dt>${escapeHtml(key)}</dt>
+          <dd>${escapeHtml(value)}</dd>
+        </div>
+      `).join('')}
+    </dl>
+  `;
+}
+
+function renderLiveSignals() {
+  const items = state.repositoryData?.liveSignals?.items ?? [];
+  if (!items.length) {
+    elements.liveSignalList.innerHTML = '<div class="empty-state">live_signals/outputs の成果物がありません。</div>';
+    elements.liveSignalDetailTitle.textContent = 'Live Signal Detail';
+    elements.liveSignalDetailBadge.textContent = '未選択';
+    elements.liveSignalDetailBadge.className = 'badge neutral';
+    elements.liveSignalSummary.innerHTML = '<div class="empty-state">表示できる live signal がありません。</div>';
+    elements.liveSignalMeta.innerHTML = '';
+    elements.liveSignalCandidatesTable.innerHTML = '';
+    return;
+  }
+
+  if (!items.some((item) => item.id === state.selectedLiveSignalId)) {
+    state.selectedLiveSignalId = items[0].id;
+  }
+
+  elements.liveSignalList.innerHTML = `<div class="raw-file-list">${
+    items.map((item) => `
+      <button type="button" class="raw-file-button ${item.id === state.selectedLiveSignalId ? 'is-active' : ''}" data-live-signal-id="${escapeHtml(item.id)}">
+        <span class="file-name">${escapeHtml(item.title)}</span>
+        <span class="file-meta">${escapeHtml(item.type)} / ${escapeHtml(item.plannedEntryDate ?? 'N/A')}</span>
+        <span class="file-meta mono">${escapeHtml(item.name)}</span>
+      </button>
+    `).join('')
+  }</div>`;
+
+  elements.liveSignalList.querySelectorAll('[data-live-signal-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.selectedLiveSignalId = button.dataset.liveSignalId;
+      renderLiveSignals();
+    });
+  });
+
+  const item = getSelectedLiveSignal();
+  if (!item) {
+    return;
+  }
+
+  elements.liveSignalDetailTitle.textContent = item.title;
+  elements.liveSignalDetailBadge.textContent = item.type === 'meta_consensus' ? 'meta_consensus' : (item.strategyId ?? 'strategy_signal');
+  elements.liveSignalDetailBadge.className = `badge ${item.type === 'meta_consensus' ? 'warn' : 'good'}`;
+
+  const summaryCards = [
+    ['signal_date', item.signalDate ?? 'N/A'],
+    ['planned_entry_date', item.plannedEntryDate ?? 'N/A'],
+    ['holding_days', item.holdingDays ?? 'N/A'],
+    ['candidate_count', item.candidateCount ?? 0],
+    ['entry_offset_days', item.entryOffsetDays ?? 'N/A'],
+    ['generated_at', item.generatedAt ? formatDate(item.generatedAt) : 'N/A'],
+  ];
+  elements.liveSignalSummary.innerHTML = summaryCards.map(([label, value]) => `
+    <article class="metric-card">
+      <span class="label">${escapeHtml(label)}</span>
+      <span class="value" style="font-size:1.1rem;">${escapeHtml(String(value))}</span>
+    </article>
+  `).join('');
+
+  renderLiveSignalMeta(item);
+
+  const preferredOrder = ['rank', 'strategy_id', 'signal_date', 'planned_entry_date', 'holding_days', 'symbol', 'final_score', 'score', 'support_count', 'main_strategies', 'action'];
+  const columns = (item.csvColumns.length ? item.csvColumns : preferredOrder)
+    .slice()
+    .sort((left, right) => {
+      const leftIndex = preferredOrder.indexOf(left);
+      const rightIndex = preferredOrder.indexOf(right);
+      if (leftIndex === -1 && rightIndex === -1) {
+        return left.localeCompare(right, 'ja');
+      }
+      if (leftIndex === -1) {
+        return 1;
+      }
+      if (rightIndex === -1) {
+        return -1;
+      }
+      return leftIndex - rightIndex;
+    })
+    .slice(0, 12);
+
+  renderTable(elements.liveSignalCandidatesTable, {
+    columns: columns.map((column) => ({
+      label: column,
+      render: (row) => `<span class="${['symbol', 'strategy_id', 'signal_date', 'planned_entry_date'].includes(column) ? 'mono' : ''}">${escapeHtml(row[column] ?? '')}</span>`,
+    })),
+    rows: item.csvRows,
+    emptyMessage: 'candidate データがありません。',
+  });
+}
+
 async function renderAll() {
+  renderTabState();
   renderSummaryCards();
   renderStrategyFilterOptions();
   renderDataKindOptions();
@@ -574,6 +725,7 @@ async function renderAll() {
   renderReports();
   await renderDataFiles();
   renderIssues();
+  renderLiveSignals();
 }
 
 async function applyRepositoryData(repositoryData, sourceLabel) {
@@ -648,6 +800,14 @@ function openFolderInputPicker() {
 }
 
 function bindEvents() {
+  elements.researchTabButton?.addEventListener('click', () => {
+    state.activeTab = 'research';
+    renderTabState();
+  });
+  elements.liveSignalsTabButton?.addEventListener('click', () => {
+    state.activeTab = 'live_signals';
+    renderTabState();
+  });
   elements.pickDirectoryButton?.addEventListener('click', loadFromDirectoryPicker);
   elements.folderInputButton?.addEventListener('click', openFolderInputPicker);
   elements.directoryInput?.addEventListener('click', () => {

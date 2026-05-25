@@ -27,6 +27,12 @@ python live_signals\generate_buy_candidates.py --strategy-id worker_10c --entry-
 python live_signals\generate_buy_candidates.py --strategy-id worker_10c --top-n 3
 ```
 
+`worker_17` / `worker_17b` のような regime-switch 型も同じ入口で出力できます。
+
+```powershell
+python live_signals\generate_buy_candidates.py --strategy-id worker_17 --entry-offset-days 1 --top-n 5
+```
+
 ## 対応 worker
 
 現時点では、実運用候補として検証上位だった ML 系を中心に対応しています。
@@ -34,6 +40,8 @@ python live_signals\generate_buy_candidates.py --strategy-id worker_10c --top-n 
 - `worker_04`
 - `worker_05`
 - `worker_06`
+- `worker_01`
+- `worker_02`
 - `worker_08`
 - `worker_10`
 - `worker_10b`
@@ -41,6 +49,8 @@ python live_signals\generate_buy_candidates.py --strategy-id worker_10c --top-n 
 - `worker_10d`
 - `worker_10e`
 - `worker_10f`
+- `worker_17`
+- `worker_17b`
 
 デフォルトは `worker_10c` です。
 

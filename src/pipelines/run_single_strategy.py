@@ -53,6 +53,13 @@ STRATEGY_MODULES = {
     "worker_14": "src.strategies.worker_14_relative_strength_defensive",
     "worker_15": "src.strategies.worker_15_stable_compounder",
     "worker_15b": "src.strategies.worker_15b_stable_compounder_relative",
+    "worker_16": "src.strategies.worker_16_meta_consensus_backtest",
+    "worker_17": "src.strategies.worker_17_regime_switch_meta",
+    "worker_17b": "src.strategies.worker_17b_regime_switch_adaptive",
+    "worker_17c": "src.strategies.worker_17c_regime_switch_windowed",
+    "worker_17d": "src.strategies.worker_17d_regime_switch_supervised",
+    "worker_17e": "src.strategies.worker_17e_regime_switch_supervised_core",
+    "worker_18": "src.strategies.worker_18_sideways_rebound",
 }
 
 

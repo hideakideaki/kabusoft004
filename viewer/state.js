@@ -2,6 +2,7 @@ export function initState() {
   return {
     sourceLabel: '未読み込み',
     repositoryData: null,
+    activeTab: 'research',
     filters: {
       strategySearch: '',
       strategyType: 'all',
@@ -13,6 +14,7 @@ export function initState() {
     comparisonStrategyIds: [],
     comparisonDateRange: null,
     selectedDataFilePath: null,
+    selectedLiveSignalId: null,
   };
 }
 
@@ -23,4 +25,5 @@ export function setRepositoryData(state, repositoryData, sourceLabel) {
   state.comparisonStrategyIds = repositoryData.strategies.slice(0, 2).map((strategy) => strategy.id);
   state.comparisonDateRange = null;
   state.selectedDataFilePath = repositoryData.dataFiles[0]?.path ?? null;
+  state.selectedLiveSignalId = repositoryData.liveSignals?.items?.[0]?.id ?? null;
 }

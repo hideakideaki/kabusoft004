@@ -83,6 +83,36 @@ button, input, select { font: inherit; }
   align-items: flex-start;
   margin-bottom: 18px;
 }
+.tab-strip {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tab-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 92, 56, 0.18);
+  background: rgba(184, 92, 56, 0.06);
+  color: var(--accent-strong);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.tab-button:hover {
+  transform: translateY(-1px);
+}
+.tab-button.is-active {
+  color: #fff8f1;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+}
+.tab-panel {
+  display: grid;
+  gap: 20px;
+}
+.tab-panel[hidden] {
+  display: none;
+}
 .panel-header h2 { font-size: 1.55rem; }
 .summary-grid, .metric-grid { display: grid; gap: 14px; }
 .summary-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
