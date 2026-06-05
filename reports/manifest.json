@@ -1,11 +1,13 @@
 {
-  "generated_at": "2026-05-25T06:27:34.021634+00:00",
+  "generated_at": "2026-06-05T06:45:36.573879+00:00",
   "reports": [
     "reports/strategy_ranking.csv",
     "reports/strategy_comparison.md",
     "reports/final_summary.md",
     "reports/operational_selection.csv",
     "reports/operational_selection.md",
+    "reports/outlier_contribution.csv",
+    "reports/outlier_contribution.md",
     "reports/main_strategy_selection.csv",
     "reports/main_strategy_selection.md",
     "reports/latest_consensus_candidates.csv",
@@ -41,6 +43,12 @@
     "worker_17c",
     "worker_17d",
     "worker_17e",
-    "worker_18"
+    "worker_18",
+    "worker_19",
+    "worker_20",
+    "worker_21",
+    "worker_22",
+    "worker_23",
+    "worker_23b"
   ]
 }

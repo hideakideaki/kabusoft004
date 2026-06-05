@@ -60,6 +60,13 @@ STRATEGY_MODULES = {
     "worker_17d": "src.strategies.worker_17d_regime_switch_supervised",
     "worker_17e": "src.strategies.worker_17e_regime_switch_supervised_core",
     "worker_18": "src.strategies.worker_18_sideways_rebound",
+    "worker_19": "src.strategies.worker_19_profit_target_classifier",
+    "worker_20": "src.strategies.worker_20_profit_target_hold_extension",
+    "worker_21": "src.strategies.worker_21_profit_target_hold_extension_relaxed",
+    "worker_22": "src.strategies.worker_22_profit_target_hold_extension_balanced",
+    "worker_23": "src.strategies.worker_23_calibrated_consensus",
+    "worker_23b": "src.strategies.worker_23b_profit_target_consensus",
+    "worker_24": "src.strategies.worker_24_fixed_yen_intraday_take_profit",
 }
 
 
@@ -253,6 +260,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             "test_start_date": backtest_cfg.get("test_start_date"),
             "test_end_date": backtest_cfg.get("test_end_date"),
             "universe_size": backtest_cfg["universe_size"],
+            "markets": backtest_cfg.get("markets"),
             "selected_holding_days": None,
             "tested_holding_days": [None],
             "models_saved": False,
@@ -349,6 +357,7 @@ def execute_strategy(root: Path, strategy_id: str, refresh_reports: bool = False
             "test_start_date": backtest_cfg.get("test_start_date"),
             "test_end_date": backtest_cfg.get("test_end_date"),
             "universe_size": backtest_cfg["universe_size"],
+            "markets": backtest_cfg.get("markets"),
             "selected_holding_days": best["holding_days"],
             "tested_holding_days": list(strategy_backtest_cfg["holding_days_tested"]),
             "signals_generated": best["signals"],

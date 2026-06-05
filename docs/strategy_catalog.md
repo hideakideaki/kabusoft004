@@ -1,3 +1,8 @@
+## worker_24
+- 毎営業日に翌営業日の始値で買う候補を出す、固定円幅利確のデイトレ型ルール戦略。
+- デフォルトでは `profit_target_yen = 50` とし、翌営業日の高値が `始値 + 50円` に到達した場合はその価格で即売却、到達しなければ同日終値で売却する。
+- 予測モデルではなく、固定円幅の利確ルール自体がバックテスト上で有効かを見るための検証worker。
+
 # strategy_catalog.md
 
 ## benchmark_buy_and_hold
@@ -93,3 +98,35 @@
 ## worker_17b
 - `worker_17` の adaptive 版で、score 差が十分大きい fold は単独主力、僅差 fold は上位2戦略混合、適格なし fold はキャッシュにする。
 - 単独化の上振れと、混合の保険の両方を残す regime-switch 型。
+## worker_17c
+- `worker_17` の train window と判定特徴量を広げた heuristic meta 戦略。
+- 局面判定の材料を増やす一方、ルールの複雑化による過適合に注意する。
+## worker_17d
+- fold 次成績を予測する supervised meta selector。
+- 構成戦略そのものではなく、どの主力戦略を採用するかを学習する。
+## worker_17e
+- `worker_17d` の主力候補群を絞った supervised meta selector。
+- 過去成績から状態の良い中核戦略を選ぶことを重視する。
+## worker_18
+- benchmark と市場 breadth が弱すぎない調整局面で、個別銘柄の短期反発を狙うルールベース戦略。
+- 地合いと個別の売られすぎを同時に見るため、銘柄単体のみの戦略ではない。
+## worker_19
+- N営業日後までにリターンが M%以上になる銘柄を正解として学習する profit target 型 ML 戦略。
+- 現在は N を `holding_days_tested` の 10/20営業日、M を 3% として、明日寄りで買ったあと N営業日以内の高値が目標リターンへ届く確率を順位付けする。
+## worker_20
+- `worker_19` の profit target 予測を入口に使い、目標到達後も継続条件が残る間は最大40営業日まで保有延長する ML 戦略。
+- 終了は「最大保有到達・高値からの下落」または「高値圏維持と直近モメンタムの継続条件を満たさなくなった時」とする。
+## worker_21
+- `worker_20` の診断結果を踏まえ、`continuation_failed` を大幅に緩め、trailing を 8% に広げた保有延長版。
+- 早く降りすぎる問題を減らし、最大40営業日まで利益を伸ばす仮説を検証する。
+## worker_22
+- `worker_21` と同じく `continuation_failed` を大幅に緩めつつ、trailing を 6% にした中間版。
+- `worker_21` の上振れとドローダウン悪化のバランスを確認するための比較戦略。
+## worker_23
+- `latest_consensus_candidates` の固定式を検証するための calibrated consensus worker。
+- `weighted_support`, `support_count`, `stable_confirmation`, `avg_signal_rank` から将来リターンを walk-forward で学習し、fold ごとに係数を保存する。
+- 係数は固定の経験則ではなく、train 期間に exit が完了している候補だけから推定し、test 期間の候補ランキングへ適用する。
+## worker_23b
+- `worker_23` の改善版。統合候補の支持情報に加えて、profit target 系の支持内訳、上位rank支持、銘柄の流動性・ボラティリティ・直近リターンを説明変数に使う。
+- 目的変数は N営業日以内に高値ベースで +3% に到達したかどうか。
+- 既存 `runs/<worker>/candidates.csv` を入力にして、walk-forward で候補ランキングを検証する。

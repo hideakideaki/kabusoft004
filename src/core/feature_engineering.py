@@ -51,7 +51,7 @@ def build_features(df: pd.DataFrame, window_main: int = 20) -> pd.DataFrame:
     working["next_open"] = grouped["open"].shift(-1)
     working["entry_date"] = grouped["date"].shift(-1)
 
-    for horizon in (10, 20):
+    for horizon in (1, 10, 20):
         working[f"exit_close_{horizon}"] = grouped["close"].shift(-horizon)
         working[f"exit_date_{horizon}"] = grouped["date"].shift(-horizon)
         working[f"future_return_{horizon}"] = (

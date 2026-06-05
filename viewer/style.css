@@ -66,6 +66,11 @@ button, input, select { font: inherit; }
 }
 .primary-button { color: #fff8f1; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%); }
 .secondary-button { color: var(--accent-strong); background: rgba(184, 92, 56, 0.08); border-color: rgba(184, 92, 56, 0.14); }
+.compact-button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 999px;
+}
 .primary-button:hover, .secondary-button:hover { transform: translateY(-1px); }
 .layout { display: grid; gap: 20px; margin-top: 20px; }
 .panel, .subpanel {
@@ -83,6 +88,14 @@ button, input, select { font: inherit; }
   align-items: flex-start;
   margin-bottom: 18px;
 }
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+.panel-actions .muted { margin: 0; }
 .tab-strip {
   display: flex;
   gap: 12px;
@@ -262,6 +275,37 @@ button, input, select { font: inherit; }
 .data-table tbody tr:hover { background: rgba(184, 92, 56, 0.06); }
 .data-table .mono { font-family: var(--mono); }
 .table-wrap { overflow: auto; }
+.weekday-profit-cell {
+  position: relative;
+  min-width: 132px;
+  min-height: 42px;
+  overflow: hidden;
+  border: 1px solid rgba(84, 62, 43, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 253, 249, 0.92);
+}
+.weekday-profit-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  opacity: 0.26;
+}
+.weekday-profit-cell.is-positive .weekday-profit-bar { background: var(--ok); }
+.weekday-profit-cell.is-negative .weekday-profit-bar { background: var(--danger); }
+.weekday-profit-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+}
+.weekday-profit-value {
+  color: var(--text);
+  font-weight: 800;
+}
+.weekday-profit-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
 .raw-file-list { display: grid; gap: 10px; max-height: 520px; overflow: auto; }
 .strategy-button, .raw-file-button { width: 100%; text-align: left; }
 .raw-file-button {
@@ -275,6 +319,26 @@ button, input, select { font: inherit; }
   transform: translateY(-1px);
 }
 .file-name { display: block; font-weight: 700; }
+.report-file-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.report-file-tab {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 248, 239, 0.82);
+  color: var(--muted);
+  cursor: pointer;
+}
+.report-file-tab:hover, .report-file-tab.is-active {
+  border-color: rgba(184, 92, 56, 0.4);
+  background: rgba(184, 92, 56, 0.08);
+  color: var(--accent-strong);
+}
 .file-meta, .meta-list, .issue-body, .markdown-body { color: var(--muted); }
 .meta-list { display: grid; gap: 10px; }
 .meta-row { display: grid; grid-template-columns: 130px 1fr; gap: 10px; }

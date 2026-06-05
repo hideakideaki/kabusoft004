@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KabuSoft Viewer</title>
-  <link rel="stylesheet" href="style.css?v=20260522a">
+  <link rel="stylesheet" href="style.css?v=20260603a">
 </head>
 <body>
   <div class="page-shell">
@@ -89,7 +89,10 @@
               <p class="section-kicker">Ranking</p>
               <h2>戦略一覧と比較選択</h2>
             </div>
-            <p id="comparison-limit-text" class="muted"></p>
+            <div class="panel-actions">
+              <p id="comparison-limit-text" class="muted"></p>
+              <button id="clear-comparison-button" class="secondary-button compact-button" type="button">全チェックを外す</button>
+            </div>
           </div>
           <div id="strategy-table-container"></div>
         </section>
@@ -112,6 +115,16 @@
               <div id="metric-chart"></div>
             </div>
           </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Weekday Profit</p>
+              <h2>買付曜日別の利益比較</h2>
+            </div>
+          </div>
+          <div id="weekday-profit-table"></div>
         </section>
 
         <section class="panel detail-panel">
@@ -144,6 +157,10 @@
               <h3>Trades Preview</h3>
               <div id="detail-trades-table"></div>
             </article>
+            <article class="subpanel wide">
+              <h3>買付曜日別 Profit</h3>
+              <div id="detail-weekday-table"></div>
+            </article>
           </div>
         </section>
 
@@ -162,6 +179,21 @@
             <article class="subpanel">
               <h3>final_summary.md</h3>
               <div id="report-final"></div>
+            </article>
+            <article class="subpanel">
+              <h3>Archive Snapshots</h3>
+              <div id="archive-run-list"></div>
+            </article>
+            <article class="subpanel wide">
+              <div class="panel-header">
+                <div>
+                  <h3 id="archive-report-title">Archive Report</h3>
+                  <p id="archive-report-meta" class="muted"></p>
+                </div>
+                <span id="archive-report-badge" class="badge neutral">未選択</span>
+              </div>
+              <div id="archive-report-tabs" class="report-file-tabs"></div>
+              <div id="archive-report-content"></div>
             </article>
           </div>
         </section>
@@ -245,6 +277,6 @@
     </main>
   </div>
 
-  <script type="module" src="app.js?v=20260522a"></script>
+  <script type="module" src="app.js?v=20260605b"></script>
 </body>
 </html>

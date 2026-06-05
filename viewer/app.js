@@ -6,6 +6,13 @@ import { renderTable } from './tables.js';
 import { escapeHtml, formatBytes, formatDate, formatNumber, formatPercent, summarizePriceData, toMarkdownHtml } from './utils.js';
 
 const MAX_COMPARISON_STRATEGIES = 10;
+const WEEKDAY_DEFINITIONS = [
+  { day: 1, key: 'mon', label: '月' },
+  { day: 2, key: 'tue', label: '火' },
+  { day: 3, key: 'wed', label: '水' },
+  { day: 4, key: 'thu', label: '木' },
+  { day: 5, key: 'fri', label: '金' },
+];
 
 const state = initState();
 state.statusLogs = [];
@@ -27,9 +34,11 @@ const elements = {
   benchmarkOnlyFilter: document.querySelector('#benchmark-only-filter'),
   strategyTableContainer: document.querySelector('#strategy-table-container'),
   comparisonLimitText: document.querySelector('#comparison-limit-text'),
+  clearComparisonButton: document.querySelector('#clear-comparison-button'),
   comparisonRangeControls: document.querySelector('#comparison-range-controls'),
   equityChart: document.querySelector('#equity-chart'),
   metricChart: document.querySelector('#metric-chart'),
+  weekdayProfitTable: document.querySelector('#weekday-profit-table'),
   detailTitle: document.querySelector('#detail-title'),
   detailBadge: document.querySelector('#detail-badge'),
   detailMetrics: document.querySelector('#detail-metrics'),
@@ -38,8 +47,15 @@ const elements = {
   detailEquityChart: document.querySelector('#detail-equity-chart'),
   detailEquityTable: document.querySelector('#detail-equity-table'),
   detailTradesTable: document.querySelector('#detail-trades-table'),
+  detailWeekdayTable: document.querySelector('#detail-weekday-table'),
   reportComparison: document.querySelector('#report-comparison'),
   reportFinal: document.querySelector('#report-final'),
+  archiveRunList: document.querySelector('#archive-run-list'),
+  archiveReportTitle: document.querySelector('#archive-report-title'),
+  archiveReportMeta: document.querySelector('#archive-report-meta'),
+  archiveReportBadge: document.querySelector('#archive-report-badge'),
+  archiveReportTabs: document.querySelector('#archive-report-tabs'),
+  archiveReportContent: document.querySelector('#archive-report-content'),
   dataSearch: document.querySelector('#data-search'),
   dataKindFilter: document.querySelector('#data-kind-filter'),
   rawFileList: document.querySelector('#raw-file-list'),
@@ -274,6 +290,111 @@ function buildComparisonPoint(row, index) {
   };
 }
 
+function parseDateWeekday(value) {
+  const match = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) {
+    return null;
+  }
+  const [, year, month, day] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  const weekday = date.getDay();
+  return Number.isFinite(weekday) ? weekday : null;
+}
+
+function parseDateTimestamp(value) {
+  const match = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) {
+    return null;
+  }
+  const [, year, month, day] = match;
+  const timestamp = new Date(Number(year), Number(month) - 1, Number(day)).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function getTradeProfit(row) {
+  const pnl = Number(row.pnl);
+  if (Number.isFinite(pnl)) {
+    return pnl;
+  }
+  const tradeReturn = Number(row.return);
+  const entryValue = Number(row.entry_value);
+  if (Number.isFinite(tradeReturn) && Number.isFinite(entryValue)) {
+    return tradeReturn * entryValue;
+  }
+  return null;
+}
+
+function createEmptyWeekdayStats() {
+  return Object.fromEntries(WEEKDAY_DEFINITIONS.map((item) => [item.day, {
+    label: item.label,
+    trades: 0,
+    pnl: 0,
+    returnSum: 0,
+    wins: 0,
+  }]));
+}
+
+function summarizeWeekdayProfits(strategy) {
+  const stats = createEmptyWeekdayStats();
+  (strategy?.trades ?? []).forEach((trade) => {
+    const weekday = parseDateWeekday(trade.entry_date);
+    if (!stats[weekday]) {
+      return;
+    }
+    const profit = getTradeProfit(trade);
+    const tradeReturn = Number(trade.return);
+    stats[weekday].trades += 1;
+    if (Number.isFinite(profit)) {
+      stats[weekday].pnl += profit;
+    }
+    if (Number.isFinite(tradeReturn)) {
+      stats[weekday].returnSum += tradeReturn;
+      if (tradeReturn > 0) {
+        stats[weekday].wins += 1;
+      }
+    } else if (Number.isFinite(profit) && profit > 0) {
+      stats[weekday].wins += 1;
+    }
+  });
+
+  return WEEKDAY_DEFINITIONS.map((item) => {
+    const value = stats[item.day];
+    return {
+      weekday: item.label,
+      key: item.key,
+      trades: value.trades,
+      pnl: value.pnl,
+      avgReturn: value.trades ? value.returnSum / value.trades : null,
+      winRate: value.trades ? value.wins / value.trades : null,
+    };
+  });
+}
+
+function getWeekdayTotal(summary) {
+  return summary.reduce((total, row) => total + row.pnl, 0);
+}
+
+function getWeekdayBarScale(summary) {
+  const maxAbs = Math.max(...summary.map((row) => Math.abs(Number(row.pnl) || 0)), 0);
+  return maxAbs || 1;
+}
+
+function renderWeekdayProfitCell(row, maxAbs) {
+  const pnl = Number(row?.pnl) || 0;
+  const ratio = Math.min(Math.abs(pnl) / maxAbs, 1);
+  const width = `${Math.max(ratio * 100, pnl === 0 ? 0 : 4).toFixed(1)}%`;
+  const directionClass = pnl >= 0 ? 'is-positive' : 'is-negative';
+  return `
+    <div class="weekday-profit-cell ${directionClass}">
+      <div class="weekday-profit-bar" style="width:${width};"></div>
+      <div class="weekday-profit-content">
+        <span class="weekday-profit-value mono">${escapeHtml(formatNumber(pnl, 0))}</span>
+        <span class="weekday-profit-meta">${escapeHtml(formatNumber(row?.trades ?? 0, 0))} trades</span>
+      </div>
+    </div>
+  `;
+}
+
 function getComparisonStrategies() {
   return state.repositoryData?.strategies.filter((strategy) => state.comparisonStrategyIds.includes(strategy.id)) ?? [];
 }
@@ -364,6 +485,7 @@ function renderComparisonRangeControls(domain, range) {
 
 function renderStrategyTable() {
   const rows = getVisibleStrategies();
+  const recentEndTimestamp = getLatestEntryTimestamp(state.repositoryData?.strategies ?? []);
   renderTable(elements.strategyTableContainer, {
     columns: [
       {
@@ -390,6 +512,8 @@ function renderStrategyTable() {
       { label: 'sharpe', render: (strategy) => escapeHtml(formatNumber(strategy.metrics.sharpe)) },
       { label: 'cagr', render: (strategy) => escapeHtml(formatPercent(strategy.metrics.cagr)) },
       { label: 'max_dd', render: (strategy) => escapeHtml(formatPercent(strategy.metrics.max_drawdown)) },
+      { label: 'profit', render: (strategy) => `<span class="mono">${escapeHtml(formatNumber(getStrategyTotalProfit(strategy), 0))}</span>` },
+      { label: 'profit 1m', render: (strategy) => `<span class="mono">${escapeHtml(formatNumber(getStrategyRecentMonthProfit(strategy, recentEndTimestamp), 0))}</span>` },
       { label: 'trades', render: (strategy) => escapeHtml(formatNumber(strategy.metrics.num_trades, 0)) },
       { label: 'status', render: (strategy) => escapeHtml(strategy.quality === 'good' ? 'ok' : 'issue') },
     ],
@@ -417,6 +541,40 @@ function renderStrategyTable() {
       renderAll();
     });
   });
+}
+
+function getStrategyTotalProfit(strategy) {
+  return (strategy?.trades ?? []).reduce((total, trade) => {
+    const profit = getTradeProfit(trade);
+    return Number.isFinite(profit) ? total + profit : total;
+  }, 0);
+}
+
+function getLatestEntryTimestamp(strategies) {
+  const timestamps = strategies
+    .flatMap((strategy) => strategy.trades ?? [])
+    .map((trade) => parseDateTimestamp(trade.entry_date))
+    .filter((timestamp) => Number.isFinite(timestamp));
+  return timestamps.length ? Math.max(...timestamps) : null;
+}
+
+function getStrategyRecentMonthProfit(strategy, endTimestamp) {
+  if (!Number.isFinite(endTimestamp)) {
+    return 0;
+  }
+  const endDate = new Date(endTimestamp);
+  const startDate = new Date(endDate);
+  startDate.setMonth(startDate.getMonth() - 1);
+  const startTimestamp = startDate.getTime();
+
+  return (strategy?.trades ?? []).reduce((total, trade) => {
+    const timestamp = parseDateTimestamp(trade.entry_date);
+    if (!Number.isFinite(timestamp) || timestamp < startTimestamp || timestamp > endTimestamp) {
+      return total;
+    }
+    const profit = getTradeProfit(trade);
+    return Number.isFinite(profit) ? total + profit : total;
+  }, 0);
 }
 
 function renderComparison() {
@@ -447,6 +605,50 @@ function renderComparison() {
   );
 }
 
+function renderWeekdayProfitComparison() {
+  const rows = getVisibleStrategies().map((strategy) => {
+    const summary = summarizeWeekdayProfits(strategy);
+    const byKey = Object.fromEntries(summary.map((item) => [item.key, item]));
+    return {
+      strategy,
+      summary,
+      byKey,
+      totalPnl: getWeekdayTotal(summary),
+    };
+  });
+
+  renderTable(elements.weekdayProfitTable, {
+    columns: [
+      {
+        label: 'strategy',
+        render: (row) => `
+          <button type="button" class="raw-file-button strategy-button" data-weekday-strategy-id="${escapeHtml(row.strategy.id)}">
+            <span class="file-name">${escapeHtml(row.strategy.meta.strategy_name ?? row.strategy.id)}</span>
+            <span class="file-meta mono">${escapeHtml(row.strategy.id)}</span>
+          </button>
+        `,
+      },
+      ...WEEKDAY_DEFINITIONS.map((item) => ({
+        label: `${item.label} pnl`,
+        render: (row) => {
+          const value = row.byKey[item.key];
+          return renderWeekdayProfitCell(value, getWeekdayBarScale(row.summary));
+        },
+      })),
+      { label: 'total pnl', render: (row) => `<span class="mono">${escapeHtml(formatNumber(row.totalPnl, 0))}</span>` },
+    ],
+    rows,
+    emptyMessage: '曜日別利益を表示できる戦略がありません。',
+  });
+
+  elements.weekdayProfitTable.querySelectorAll('[data-weekday-strategy-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.selectedStrategyId = button.dataset.weekdayStrategyId;
+      renderAll();
+    });
+  });
+}
+
 function renderStrategyDetail() {
   const strategy = getSelectedStrategy();
   if (!strategy) {
@@ -459,6 +661,7 @@ function renderStrategyDetail() {
     elements.detailEquityChart.innerHTML = '';
     elements.detailEquityTable.innerHTML = '';
     elements.detailTradesTable.innerHTML = '';
+    elements.detailWeekdayTable.innerHTML = '';
     return;
   }
 
@@ -536,12 +739,171 @@ function renderStrategyDetail() {
     rows: strategy.trades.slice(0, 20),
     emptyMessage: 'trades.csv を表示できません。',
   });
+
+  const weekdayRows = summarizeWeekdayProfits(strategy);
+  const weekdayMaxAbs = getWeekdayBarScale(weekdayRows);
+  renderTable(elements.detailWeekdayTable, {
+    columns: [
+      { label: '買付曜日', render: (row) => escapeHtml(row.weekday) },
+      { label: 'pnl合計', render: (row) => renderWeekdayProfitCell(row, weekdayMaxAbs) },
+      { label: '平均return', render: (row) => escapeHtml(formatPercent(row.avgReturn)) },
+      { label: '勝率', render: (row) => escapeHtml(formatPercent(row.winRate)) },
+      { label: 'trades', render: (row) => escapeHtml(formatNumber(row.trades, 0)) },
+    ],
+    rows: weekdayRows,
+    emptyMessage: '曜日別利益を表示できません。',
+  });
 }
 
 function renderReports() {
   const reports = state.repositoryData?.reports;
   elements.reportComparison.innerHTML = `<div class="markdown-body">${toMarkdownHtml(reports?.comparisonMarkdown ?? '')}</div>`;
   elements.reportFinal.innerHTML = `<div class="markdown-body">${toMarkdownHtml(reports?.finalSummaryMarkdown ?? '')}</div>`;
+  renderArchiveReports();
+}
+
+function getArchiveDisplayFiles(archive) {
+  const preferredOrder = [
+    'latest_consensus_candidates.md',
+    'latest_consensus_candidates.csv',
+    'operational_selection.md',
+    'operational_selection.csv',
+    'main_strategy_selection.md',
+    'main_strategy_selection.csv',
+    'outlier_contribution.md',
+    'outlier_contribution.csv',
+    'final_summary.md',
+    'strategy_comparison.md',
+    'strategy_ranking.csv',
+    'archive_meta.json',
+    'manifest.json',
+  ];
+  return [...(archive?.files ?? [])].sort((left, right) => {
+    const leftIndex = preferredOrder.indexOf(left.name);
+    const rightIndex = preferredOrder.indexOf(right.name);
+    if (leftIndex === -1 && rightIndex === -1) {
+      return left.name.localeCompare(right.name, 'ja');
+    }
+    if (leftIndex === -1) {
+      return 1;
+    }
+    if (rightIndex === -1) {
+      return -1;
+    }
+    return leftIndex - rightIndex;
+  });
+}
+
+function getSelectedArchiveRun() {
+  const archives = state.repositoryData?.reports?.archiveRuns ?? [];
+  return archives.find((archive) => archive.id === state.selectedArchiveRunId) ?? null;
+}
+
+function getSelectedArchiveReport() {
+  const archive = getSelectedArchiveRun();
+  return archive?.files.find((file) => file.path === state.selectedArchiveReportPath) ?? null;
+}
+
+function renderReportFile(file) {
+  if (!file) {
+    elements.archiveReportContent.innerHTML = '<div class="empty-state">アーカイブ内のレポートを選択してください。</div>';
+    return;
+  }
+
+  if (file.extension === 'md') {
+    elements.archiveReportContent.innerHTML = `<div class="markdown-body">${toMarkdownHtml(file.markdown)}</div>`;
+    return;
+  }
+
+  if (file.extension === 'csv') {
+    const columns = file.columns.slice(0, 12);
+    renderTable(elements.archiveReportContent, {
+      columns: columns.map((column) => ({
+        label: column,
+        render: (row) => `<span class="${['rank', 'strategy_id', 'symbol', 'candidate_max_date', 'latest_market_date'].includes(column) ? 'mono' : ''}">${escapeHtml(row[column] ?? '')}</span>`,
+      })),
+      rows: file.rows.slice(0, 80),
+      emptyMessage: 'CSV に表示可能な行がありません。',
+    });
+    return;
+  }
+
+  if (file.extension === 'json') {
+    elements.archiveReportContent.innerHTML = `<div class="table-wrap"><pre class="mono">${escapeHtml(JSON.stringify(file.json ?? {}, null, 2))}</pre></div>`;
+    return;
+  }
+
+  elements.archiveReportContent.innerHTML = `<div class="table-wrap"><pre class="mono">${escapeHtml(file.rawText.slice(0, 12000))}</pre></div>`;
+}
+
+function renderArchiveReports() {
+  const archives = state.repositoryData?.reports?.archiveRuns ?? [];
+  if (!elements.archiveRunList) {
+    return;
+  }
+
+  if (!archives.length) {
+    elements.archiveRunList.innerHTML = '<div class="empty-state">reports/archive のスナップショットがありません。</div>';
+    elements.archiveReportTitle.textContent = 'Archive Report';
+    elements.archiveReportMeta.textContent = '';
+    elements.archiveReportBadge.textContent = '未選択';
+    elements.archiveReportBadge.className = 'badge neutral';
+    elements.archiveReportTabs.innerHTML = '';
+    elements.archiveReportContent.innerHTML = '<div class="empty-state">表示できるアーカイブがありません。</div>';
+    return;
+  }
+
+  if (!archives.some((archive) => archive.id === state.selectedArchiveRunId)) {
+    state.selectedArchiveRunId = archives[0].id;
+  }
+
+  elements.archiveRunList.innerHTML = `<div class="raw-file-list">${
+    archives.map((archive) => {
+      const generatedAt = archive.meta?.generated_at ? formatDate(archive.meta.generated_at) : 'N/A';
+      const marketDate = archive.meta?.latest_market_date ?? 'N/A';
+      return `
+        <button type="button" class="raw-file-button ${archive.id === state.selectedArchiveRunId ? 'is-active' : ''}" data-archive-id="${escapeHtml(archive.id)}">
+          <span class="file-name mono">${escapeHtml(archive.id)}</span>
+          <span class="file-meta">latest_market_date: ${escapeHtml(marketDate)}</span>
+          <span class="file-meta">generated_at: ${escapeHtml(generatedAt)} / ${escapeHtml(formatNumber(archive.files.length, 0))} files</span>
+        </button>
+      `;
+    }).join('')
+  }</div>`;
+
+  elements.archiveRunList.querySelectorAll('[data-archive-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.selectedArchiveRunId = button.dataset.archiveId;
+      state.selectedArchiveReportPath = null;
+      renderReports();
+    });
+  });
+
+  const archive = getSelectedArchiveRun();
+  const displayFiles = getArchiveDisplayFiles(archive);
+  if (!displayFiles.some((file) => file.path === state.selectedArchiveReportPath)) {
+    state.selectedArchiveReportPath = displayFiles[0]?.path ?? null;
+  }
+  const selectedFile = getSelectedArchiveReport();
+
+  elements.archiveReportTitle.textContent = selectedFile?.name ?? 'Archive Report';
+  elements.archiveReportMeta.textContent = archive?.meta?.note ?? 'Snapshot of decision reports.';
+  elements.archiveReportBadge.textContent = archive?.meta?.latest_market_date ?? archive?.id ?? 'archive';
+  elements.archiveReportBadge.className = 'badge good';
+  elements.archiveReportTabs.innerHTML = displayFiles.map((file) => `
+    <button type="button" class="report-file-tab ${file.path === state.selectedArchiveReportPath ? 'is-active' : ''}" data-report-path="${escapeHtml(file.path)}">
+      ${escapeHtml(file.name)}
+    </button>
+  `).join('');
+
+  elements.archiveReportTabs.querySelectorAll('[data-report-path]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.selectedArchiveReportPath = button.dataset.reportPath;
+      renderReports();
+    });
+  });
+
+  renderReportFile(selectedFile);
 }
 
 async function renderDataFiles() {
@@ -721,6 +1083,7 @@ async function renderAll() {
   renderDataKindOptions();
   renderStrategyTable();
   renderComparison();
+  renderWeekdayProfitComparison();
   renderStrategyDetail();
   renderReports();
   await renderDataFiles();
@@ -833,6 +1196,11 @@ function bindEvents() {
   });
   elements.benchmarkOnlyFilter?.addEventListener('change', () => {
     state.filters.benchmarkOnly = elements.benchmarkOnlyFilter.checked;
+    renderAll();
+  });
+  elements.clearComparisonButton?.addEventListener('click', () => {
+    state.comparisonStrategyIds = [];
+    state.comparisonDateRange = null;
     renderAll();
   });
   elements.dataSearch?.addEventListener('input', () => {

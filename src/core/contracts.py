@@ -37,6 +37,13 @@ STRATEGY_IDS = (
     "worker_17d",
     "worker_17e",
     "worker_18",
+    "worker_19",
+    "worker_20",
+    "worker_21",
+    "worker_22",
+    "worker_23",
+    "worker_23b",
+    "worker_24",
 )
 
 REQUIRED_RUN_FILES = (
@@ -54,6 +61,8 @@ REQUIRED_REPORT_FILES = (
     "final_summary.md",
     "operational_selection.csv",
     "operational_selection.md",
+    "outlier_contribution.csv",
+    "outlier_contribution.md",
 )
 
 REQUIRED_EQUITY_COLUMNS = (

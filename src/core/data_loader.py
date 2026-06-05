@@ -35,6 +35,15 @@ def _allow_csv_fallback(root: Path) -> bool:
     return bool(load_backtest_config(root).get("allow_csv_fallback", False))
 
 
+def _configured_markets(root: Path) -> tuple[str, ...]:
+    markets = load_backtest_config(root).get("markets")
+    if markets in (None, "", []):
+        return ()
+    if isinstance(markets, str):
+        return (markets,)
+    return tuple(str(market) for market in markets if str(market))
+
+
 def _normalize_symbol_from_ticker(ticker: str) -> str:
     return ticker.split(".", 1)[0]
 
@@ -83,15 +92,26 @@ def _connect_database(root: Path) -> sqlite3.Connection:
     return sqlite3.connect(str(db_path))
 
 
-def _select_universe_from_db(root: Path, universe_size: int) -> list[str]:
-    query = """
+def _select_universe_from_db(root: Path, universe_size: int, markets: tuple[str, ...]) -> list[str]:
+    market_join = ""
+    market_filter = ""
+    params: list[object] = []
+    if markets:
+        placeholders = ",".join("?" for _ in markets)
+        market_join = "JOIN ticker_master tm ON tm.ticker = dp.ticker"
+        market_filter = f"AND tm.is_active = 1 AND tm.market IN ({placeholders})"
+        params.extend(markets)
+
+    query = f"""
     WITH ranked AS (
         SELECT
-            ticker,
-            close * volume AS traded_value,
-            ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
-        FROM daily_prices
-        WHERE ticker LIKE '%.T'
+            dp.ticker,
+            dp.close * dp.volume AS traded_value,
+            ROW_NUMBER() OVER (PARTITION BY dp.ticker ORDER BY dp.date DESC) AS rn
+        FROM daily_prices dp
+        {market_join}
+        WHERE dp.ticker LIKE '%.T'
+        {market_filter}
     )
     SELECT ticker
     FROM ranked
@@ -100,13 +120,16 @@ def _select_universe_from_db(root: Path, universe_size: int) -> list[str]:
     ORDER BY AVG(traded_value) DESC
     LIMIT ?
     """
+    params.append(int(universe_size))
     with _connect_database(root) as con:
-        rows = con.execute(query, (int(universe_size),)).fetchall()
+        rows = con.execute(query, params).fetchall()
     return [_normalize_symbol_from_ticker(row[0]) for row in rows]
 
 
-def _load_market_data_from_db(root: Path, universe_size: int) -> pd.DataFrame:
-    symbols = select_universe(root, universe_size)
+def _load_market_data_from_db(root: Path, universe_size: int, markets: tuple[str, ...]) -> pd.DataFrame:
+    symbols = select_universe(root, universe_size, markets)
+    if not symbols:
+        return pd.DataFrame(columns=["date", "symbol", "open", "high", "low", "close", "volume"])
     tickers = [_normalize_ticker_for_db(symbol) for symbol in symbols]
     placeholders = ",".join("?" for _ in tickers)
     query = f"""
@@ -135,22 +158,41 @@ def _select_universe_from_csv(root: Path, universe_size: int) -> list[str]:
     return [symbol for symbol, _ in liquidities[:universe_size]]
 
 
-def select_universe(root: Path, universe_size: int) -> list[str]:
+def select_universe(
+    root: Path,
+    universe_size: int,
+    markets: tuple[str, ...] | None = None,
+) -> list[str]:
+    market_filter = _configured_markets(root) if markets is None else markets
     if _resolve_database_source(root) is not None:
-        return _select_universe_from_db(root, universe_size)
+        return _select_universe_from_db(root, universe_size, market_filter)
     if not _allow_csv_primary_source(root):
         raise FileNotFoundError("CSV primary source is disabled and database_path is not available")
+    if market_filter:
+        raise ValueError("markets filter requires database_path with ticker_master.market")
     return _select_universe_from_csv(root, universe_size)
 
 
-@lru_cache(maxsize=2)
 def load_market_data(root_str: str, universe_size: int) -> pd.DataFrame:
     root = Path(root_str)
+    markets = _configured_markets(root)
+    return _load_market_data_cached(root_str, universe_size, markets)
+
+
+@lru_cache(maxsize=8)
+def _load_market_data_cached(
+    root_str: str,
+    universe_size: int,
+    markets: tuple[str, ...],
+) -> pd.DataFrame:
+    root = Path(root_str)
     if _resolve_database_source(root) is not None:
-        market = _load_market_data_from_db(root, universe_size)
+        market = _load_market_data_from_db(root, universe_size, markets)
     else:
         if not _allow_csv_primary_source(root):
             raise FileNotFoundError("CSV primary source is disabled and database_path is not available")
+        if markets:
+            raise ValueError("markets filter requires database_path with ticker_master.market")
         symbols = select_universe(root, universe_size)
         frames: list[pd.DataFrame] = []
         for symbol in symbols:

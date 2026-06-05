@@ -1,3 +1,7 @@
+## worker_24
+- `worker_24` は rule_based。個別銘柄の日足だけを使って候補順位を作り、翌営業日の高値/終値は売却判定のバックテスト結果としてのみ使う。
+- benchmark、市場breadth、他workerの成績には依存しない。
+
 # Worker Input Dependency Matrix
 
 この文書は、各 worker が売買候補を作る際に何を見ているかを整理したものです。
@@ -42,6 +46,10 @@
 | `worker_17d` | ml_based | 間接的 | 間接的 | はい | fold 次成績を予測する supervised meta selector |
 | `worker_17e` | ml_based | 間接的 | 間接的 | はい | 主力候補群を絞った supervised meta selector |
 | `worker_18` | rule_based | はい | はい | いいえ | benchmark と市場 breadth が弱い局面での短期反発狙い |
+| `worker_19` | ml_based | いいえ | いいえ | いいえ | N営業日後までにM%以上のリターンへ到達する銘柄を直接学習 |
+| `worker_20` | ml_based | いいえ | いいえ | いいえ | `worker_19` の予測に保有延長と動的出口を追加 |
+| `worker_21` | ml_based | いいえ | いいえ | いいえ | `worker_20` の継続条件を緩めた保有延長版 |
+| `worker_22` | ml_based | いいえ | いいえ | いいえ | `worker_21` の trailing を 6% にした中間版 |
 
 ## 補足
 
@@ -93,3 +101,9 @@
 - 市場全体の地合いを少しは見たいなら、`worker_15` は候補になる
 - 相場局面で戦略を切り替えたいなら、`worker_16` 以降の meta 系を使う
 - 銘柄単体の情報だけで完結したいなら、`worker_01` から `worker_13` と `worker_10` 系が中心になる
+- profit target 型の予測を見たいなら、`worker_19` は N/M 条件を明示した比較対象になる
+- profit target 到達後の保有延長を検証したいなら、`worker_20` を比較対象にする
+- 早期終了を抑えて利益を伸ばす仮説を検証したいなら、`worker_21` を比較対象にする
+- 収益伸長とドローダウンのバランスを見るなら、`worker_22` を比較対象にする
+| `worker_23` | ml_based | 間接的 | 間接的 | はい | 統合候補の係数を walk-forward で学習する calibrated consensus |
+| `worker_23b` | ml_based | 間接的 | 間接的 | はい | profit target 到達を目的変数にした calibrated consensus |

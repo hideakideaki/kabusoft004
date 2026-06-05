@@ -15,6 +15,8 @@ export function initState() {
     comparisonDateRange: null,
     selectedDataFilePath: null,
     selectedLiveSignalId: null,
+    selectedArchiveRunId: null,
+    selectedArchiveReportPath: null,
   };
 }
 
@@ -26,4 +28,6 @@ export function setRepositoryData(state, repositoryData, sourceLabel) {
   state.comparisonDateRange = null;
   state.selectedDataFilePath = repositoryData.dataFiles[0]?.path ?? null;
   state.selectedLiveSignalId = repositoryData.liveSignals?.items?.[0]?.id ?? null;
+  state.selectedArchiveRunId = repositoryData.reports.archiveRuns[0]?.id ?? null;
+  state.selectedArchiveReportPath = null;
 }

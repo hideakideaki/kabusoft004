@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -337,6 +338,144 @@ def write_operational_selection_md(root: Path, ranked: list[Any]) -> Path:
     return output_path
 
 
+def _load_trades_frame(snapshot) -> pd.DataFrame:
+    path = snapshot.run_dir / "trades.csv"
+    if not path.exists():
+        return pd.DataFrame()
+    trades = pd.read_csv(path)
+    if trades.empty:
+        return trades
+    for column in ("entry_price", "exit_price", "shares", "return"):
+        if column in trades.columns:
+            trades[column] = pd.to_numeric(trades[column], errors="coerce")
+    if "pnl" not in trades.columns and {"entry_price", "exit_price", "shares"}.issubset(trades.columns):
+        trades["pnl"] = (trades["exit_price"] - trades["entry_price"]) * trades["shares"]
+    if "entry_value" not in trades.columns and {"entry_price", "shares"}.issubset(trades.columns):
+        trades["entry_value"] = trades["entry_price"] * trades["shares"]
+    return trades
+
+
+def _pnl_share(value: float, total_positive_pnl: float) -> float:
+    if total_positive_pnl <= 0:
+        return 0.0
+    return round(float(value) / total_positive_pnl, 6)
+
+
+def _outlier_rows(ranked: list[Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for snapshot in ranked:
+        trades = _load_trades_frame(snapshot)
+        if trades.empty or "pnl" not in trades.columns:
+            rows.append(
+                {
+                    "strategy_id": snapshot.strategy_id,
+                    "num_trades": 0,
+                    "total_pnl": 0.0,
+                    "total_positive_pnl": 0.0,
+                    "top_trade_pnl_share": 0.0,
+                    "top_5_trades_pnl_share": 0.0,
+                    "top_symbol": "",
+                    "top_symbol_pnl_share": 0.0,
+                    "max_trade_return": 0.0,
+                    "trades_return_ge_50pct": 0,
+                    "trades_return_ge_100pct": 0,
+                }
+            )
+            continue
+
+        working = trades.copy()
+        working["pnl"] = pd.to_numeric(working["pnl"], errors="coerce").fillna(0.0)
+        positive = working[working["pnl"] > 0].sort_values("pnl", ascending=False)
+        total_pnl = float(working["pnl"].sum())
+        total_positive_pnl = float(positive["pnl"].sum())
+        top_trade_pnl = float(positive["pnl"].iloc[0]) if not positive.empty else 0.0
+        top_5_trade_pnl = float(positive["pnl"].head(5).sum()) if not positive.empty else 0.0
+
+        by_symbol = (
+            working.groupby("code", dropna=False)["pnl"].sum().sort_values(ascending=False)
+            if "code" in working.columns
+            else pd.Series(dtype=float)
+        )
+        top_symbol = str(by_symbol.index[0]) if not by_symbol.empty else ""
+        top_symbol_pnl = float(by_symbol.iloc[0]) if not by_symbol.empty else 0.0
+
+        returns = pd.to_numeric(working.get("return", pd.Series(dtype=float)), errors="coerce").fillna(0.0)
+        rows.append(
+            {
+                "strategy_id": snapshot.strategy_id,
+                "num_trades": int(len(working)),
+                "total_pnl": round(total_pnl, 6),
+                "total_positive_pnl": round(total_positive_pnl, 6),
+                "top_trade_pnl_share": _pnl_share(top_trade_pnl, total_positive_pnl),
+                "top_5_trades_pnl_share": _pnl_share(top_5_trade_pnl, total_positive_pnl),
+                "top_symbol": top_symbol,
+                "top_symbol_pnl_share": _pnl_share(top_symbol_pnl, total_positive_pnl),
+                "max_trade_return": round(float(returns.max()), 6) if len(returns) else 0.0,
+                "trades_return_ge_50pct": int((returns >= 0.50).sum()),
+                "trades_return_ge_100pct": int((returns >= 1.00).sum()),
+            }
+        )
+    rows.sort(
+        key=lambda item: (
+            float(item["top_5_trades_pnl_share"]),
+            float(item["top_symbol_pnl_share"]),
+            float(item["max_trade_return"]),
+        ),
+        reverse=True,
+    )
+    return rows
+
+
+def write_outlier_contribution_csv(root: Path, ranked: list[Any]) -> Path:
+    output_path = root / "reports" / "outlier_contribution.csv"
+    rows = _outlier_rows(ranked)
+    fieldnames = [
+        "rank",
+        "strategy_id",
+        "num_trades",
+        "total_pnl",
+        "total_positive_pnl",
+        "top_trade_pnl_share",
+        "top_5_trades_pnl_share",
+        "top_symbol",
+        "top_symbol_pnl_share",
+        "max_trade_return",
+        "trades_return_ge_50pct",
+        "trades_return_ge_100pct",
+    ]
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for index, row in enumerate(rows, start=1):
+            writer.writerow({"rank": index, **row})
+    return output_path
+
+
+def write_outlier_contribution_md(root: Path, ranked: list[Any]) -> Path:
+    output_path = root / "reports" / "outlier_contribution.md"
+    rows = _outlier_rows(ranked)
+    lines = [
+        "# outlier_contribution.md",
+        "",
+        "## Purpose",
+        "",
+        "- Shows whether each strategy's profit depends heavily on a small number of trades or symbols.",
+        "- `*_pnl_share` uses positive PnL as the denominator, so a high value means concentrated profit contribution.",
+        "",
+        "| Rank | Strategy | Trades | Top trade share | Top 5 trades share | Top symbol | Top symbol share | Max return | >=50% trades | >=100% trades |",
+        "| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |",
+    ]
+    for index, row in enumerate(rows, start=1):
+        lines.append(
+            "| {rank} | {strategy_id} | {num_trades} | {top_trade_pnl_share} | {top_5_trades_pnl_share} | {top_symbol} | {top_symbol_pnl_share} | {max_trade_return} | {trades_return_ge_50pct} | {trades_return_ge_100pct} |".format(
+                rank=index,
+                **row,
+            )
+        )
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return output_path
+
+
 def _latest_market_date(ranked: list[Any]) -> str:
     benchmark = next((snapshot for snapshot in ranked if snapshot.meta.get("benchmark")), None)
     if benchmark is not None:
@@ -374,6 +513,15 @@ def _load_candidates_for_date(snapshot, target_date: str) -> pd.DataFrame:
         return pd.DataFrame()
     candidates["date"] = pd.to_datetime(candidates["date"]).dt.strftime("%Y-%m-%d")
     return candidates[candidates["date"] == target_date].copy()
+
+
+def _heuristic_consensus_score(row: dict[str, Any]) -> float:
+    return (
+        float(row["weighted_support"])
+        + float(row["support_count"]) * 0.5
+        + (0.75 if row["stable_confirmation"] else 0.0)
+        - float(row["avg_signal_rank"]) * 0.05
+    )
 
 
 def _main_strategy_rows(ranked: list[Any]) -> list[dict[str, Any]]:
@@ -569,20 +717,17 @@ def _latest_consensus_rows(ranked: list[Any]) -> list[dict[str, Any]]:
     for item in symbol_rows.values():
         count = item["support_count"]
         avg_rank = item["avg_signal_rank"] / count if count else 0.0
-        bonus = 0.75 if item["stable_confirmation"] else 0.0
-        final_score = item["weighted_support"] + count * 0.5 + bonus - avg_rank * 0.05
-        rows.append(
-            {
-                "date": item["date"],
-                "symbol": item["symbol"],
-                "support_count": count,
-                "weighted_support": round(item["weighted_support"], 6),
-                "avg_signal_rank": round(avg_rank, 4),
-                "stable_confirmation": item["stable_confirmation"],
-                "support_strategies": "|".join(item["strategies"]),
-                "final_score": round(final_score, 6),
-            }
-        )
+        row = {
+            "date": item["date"],
+            "symbol": item["symbol"],
+            "support_count": count,
+            "weighted_support": round(item["weighted_support"], 6),
+            "avg_signal_rank": round(avg_rank, 4),
+            "stable_confirmation": item["stable_confirmation"],
+            "support_strategies": "|".join(item["strategies"]),
+        }
+        row["final_score"] = round(_heuristic_consensus_score(row), 6)
+        rows.append(row)
 
     rows.sort(
         key=lambda item: (
@@ -632,6 +777,18 @@ def write_latest_consensus_candidates_md(root: Path, ranked: list[Any]) -> Path:
         f"- 現在の集計対象日: {latest_market_date or '-'}",
         "",
         "## 統合候補",
+        "",
+        "## 列の意味",
+        "",
+        "- `順位`: 統合候補内の順位。`support_count`、`final_score`、`avg_signal_rank` の順で並べている。",
+        "- `日付`: 候補を集計した市場日。",
+        "- `銘柄`: 銘柄コード。",
+        "- `支持戦略数`: 主力採用戦略のうち、その銘柄を候補に出した戦略数。",
+        "- `重み付き支持`: 支持した各戦略の長期 Sharpe と直近60日 Sharpe を加味した支持の合計。",
+        "- `平均順位`: 支持した各戦略内での `signal_rank` の平均。小さいほど各戦略で上位に出ている。",
+        "- `stable確認`: 補助確認用の `worker_15b` も同じ日に同銘柄を候補に出しているか。",
+        "- `戦略一覧`: その銘柄を支持した戦略IDの一覧。",
+        "- `最終スコア`: 統合候補の並び替え用スコア。重み付き支持、支持戦略数、stable確認を加点し、平均順位が低いほど減点する暫定式。",
         "",
         "| 順位 | 日付 | 銘柄 | 支持戦略数 | 重み付き支持 | 平均順位 | stable確認 | 戦略一覧 | 最終スコア |",
         "| --- | --- | --- | ---: | ---: | ---: | --- | --- | ---: |",
@@ -688,6 +845,29 @@ def write_manifests(root: Path, ranked: list[Any], report_paths: list[Path]) -> 
     return runs_manifest_path, reports_manifest_path
 
 
+def write_report_archive(root: Path, ranked: list[Any], report_paths: list[Path]) -> Path:
+    generated_at = datetime.now(timezone.utc).isoformat()
+    archive_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    archive_dir = root / "reports" / "archive" / archive_id
+    archive_dir.mkdir(parents=True, exist_ok=False)
+
+    for path in report_paths:
+        if path.exists():
+            shutil.copy2(path, archive_dir / path.name)
+
+    meta = {
+        "generated_at": generated_at,
+        "latest_market_date": _latest_market_date(ranked),
+        "files": [path.name for path in report_paths if path.exists()],
+        "note": "Snapshot of decision reports at report build time.",
+    }
+    (archive_dir / "archive_meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return archive_dir
+
+
 def build_reports(root: Path) -> dict[str, Any]:
     snapshots = [load_run_snapshot(root, strategy_id) for strategy_id in STRATEGY_IDS]
     ranked = rank_snapshots(snapshots)
@@ -697,6 +877,8 @@ def build_reports(root: Path) -> dict[str, Any]:
     final_summary_path = write_final_summary(root, ranked)
     operational_csv_path = write_operational_selection_csv(root, ranked)
     operational_md_path = write_operational_selection_md(root, ranked)
+    outlier_contribution_csv_path = write_outlier_contribution_csv(root, ranked)
+    outlier_contribution_md_path = write_outlier_contribution_md(root, ranked)
     main_selection_csv_path = write_main_strategy_selection_csv(root, ranked)
     main_selection_md_path = write_main_strategy_selection_md(root, ranked)
     latest_consensus_csv_path = write_latest_consensus_candidates_csv(root, ranked)
@@ -710,10 +892,30 @@ def build_reports(root: Path) -> dict[str, Any]:
             final_summary_path,
             operational_csv_path,
             operational_md_path,
+            outlier_contribution_csv_path,
+            outlier_contribution_md_path,
             main_selection_csv_path,
             main_selection_md_path,
             latest_consensus_csv_path,
             latest_consensus_md_path,
+        ],
+    )
+    archive_dir = write_report_archive(
+        root,
+        ranked,
+        [
+            ranking_path,
+            comparison_path,
+            final_summary_path,
+            operational_csv_path,
+            operational_md_path,
+            outlier_contribution_csv_path,
+            outlier_contribution_md_path,
+            main_selection_csv_path,
+            main_selection_md_path,
+            latest_consensus_csv_path,
+            latest_consensus_md_path,
+            reports_manifest_path,
         ],
     )
 
@@ -723,12 +925,15 @@ def build_reports(root: Path) -> dict[str, Any]:
         "final_summary": final_summary_path,
         "operational_selection_csv": operational_csv_path,
         "operational_selection_md": operational_md_path,
+        "outlier_contribution_csv": outlier_contribution_csv_path,
+        "outlier_contribution_md": outlier_contribution_md_path,
         "main_strategy_selection_csv": main_selection_csv_path,
         "main_strategy_selection_md": main_selection_md_path,
         "latest_consensus_candidates_csv": latest_consensus_csv_path,
         "latest_consensus_candidates_md": latest_consensus_md_path,
         "runs_manifest": runs_manifest_path,
         "reports_manifest": reports_manifest_path,
+        "archive_dir": archive_dir,
     }
 
 

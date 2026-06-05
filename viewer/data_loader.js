@@ -107,12 +107,89 @@ async function loadStrategyFiles(strategyId, fileMap, issues) {
   return strategy;
 }
 
+async function collectFileRefsRecursive(directoryHandle, prefix = '') {
+  const refs = new Map();
+  for await (const [name, entry] of directoryHandle.entries()) {
+    if (name.startsWith('.')) {
+      continue;
+    }
+    const path = prefix ? `${prefix}/${name}` : name;
+    if (entry.kind === 'file') {
+      refs.set(path, { kind: 'handle', handle: entry });
+    } else if (entry.kind === 'directory') {
+      const nestedRefs = await collectFileRefsRecursive(entry, path);
+      nestedRefs.forEach((ref, nestedPath) => refs.set(nestedPath, ref));
+    }
+  }
+  return refs;
+}
+
+function createReportFile(path, text) {
+  const name = path.split('/').at(-1);
+  const extension = name.includes('.') ? name.split('.').at(-1).toLowerCase() : '';
+  const file = {
+    path,
+    name,
+    extension,
+    markdown: '',
+    rows: [],
+    columns: [],
+    json: null,
+    rawText: text,
+  };
+
+  if (extension === 'csv') {
+    file.rows = parseCsv(text);
+    file.columns = file.rows[0] ? Object.keys(file.rows[0]) : [];
+  } else if (extension === 'json') {
+    file.json = safeParseJson(text);
+  } else if (extension === 'md') {
+    file.markdown = text;
+  }
+  return file;
+}
+
+function createArchiveRuns(reportFiles) {
+  const archives = new Map();
+  reportFiles.forEach((file) => {
+    const parts = file.path.split('/');
+    if (parts[0] !== 'archive' || parts.length < 3) {
+      return;
+    }
+    const archiveId = parts[1];
+    if (!archives.has(archiveId)) {
+      archives.set(archiveId, { id: archiveId, files: [], meta: {} });
+    }
+    const archive = archives.get(archiveId);
+    archive.files.push(file);
+    if (file.name === 'archive_meta.json' && file.json) {
+      archive.meta = file.json;
+    }
+  });
+
+  return [...archives.values()]
+    .map((archive) => ({
+      ...archive,
+      files: archive.files.sort((left, right) => left.name.localeCompare(right.name, 'ja')),
+    }))
+    .sort((left, right) => right.id.localeCompare(left.id, 'ja'));
+}
+
 async function parseReports(reportRefs, issues) {
-  const reports = { ranking: [], comparisonMarkdown: '', finalSummaryMarkdown: '' };
+  const reports = {
+    ranking: [],
+    comparisonMarkdown: '',
+    finalSummaryMarkdown: '',
+    files: [],
+    archiveRuns: [],
+  };
+
   for (const [name, ref] of reportRefs.entries()) {
     try {
       const text = await readTextFromReference(ref);
-      if (name.endsWith('.csv')) {
+      const reportFile = createReportFile(name, text);
+      reports.files.push(reportFile);
+      if (name === 'strategy_ranking.csv') {
         reports.ranking = parseCsv(text);
       } else if (name === 'strategy_comparison.md') {
         reports.comparisonMarkdown = text;
@@ -123,6 +200,8 @@ async function parseReports(reportRefs, issues) {
       issues.push(createIssue('report', `reports/${name}`, `読み込みに失敗しました: ${error.message}`));
     }
   }
+  reports.files.sort((left, right) => left.path.localeCompare(right.path, 'ja'));
+  reports.archiveRuns = createArchiveRuns(reports.files);
 
   for (const requiredReport of ['strategy_ranking.csv', 'strategy_comparison.md', 'final_summary.md']) {
     if (!reportRefs.has(requiredReport)) {
@@ -288,11 +367,8 @@ export async function loadRepositoryFromDirectoryHandle(rootHandle, options = {}
   const reportRefs = new Map();
   if (reportsHandle?.kind === 'directory') {
     progress('`reports/` を読み込んでいます。');
-    for await (const [name, entry] of reportsHandle.entries()) {
-      if (entry.kind === 'file') {
-        reportRefs.set(name, { kind: 'handle', handle: entry });
-      }
-    }
+    const collectedReportRefs = await collectFileRefsRecursive(reportsHandle);
+    collectedReportRefs.forEach((ref, name) => reportRefs.set(name, ref));
   }
   const reports = await parseReports(reportRefs, issues);
 

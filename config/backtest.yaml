@@ -18,9 +18,15 @@ fee_bps: 10
 slippage_bps: 10
 trade_lot_size: 100
 universe_size: 250
+# markets: null
+markets: ["プライム"]
 max_positions: 10
 benchmark_positions: 20
 benchmark_symbol: "^N225"
 benchmark_trade_lot_size: 1
 top_signals_per_day: 20
 min_history_days: 260
+max_position_value_pct: 0.10
+min_signal_price: 100
+min_signal_traded_value: 50000000
+profit_target_yen: 50
